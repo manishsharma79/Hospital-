@@ -61,7 +61,7 @@ export const LoginPage: React.FC = () => {
     return <Navigate to={getRoleHomeRoute(currentUser.role)} replace />;
   }
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
@@ -74,7 +74,7 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    const res = login(email, password, role);
+    const res = await login(email, password, role);
     if (!res.ok) {
       setFeedback({ type: 'error', text: res.message });
       return;
@@ -85,7 +85,7 @@ export const LoginPage: React.FC = () => {
     navigate(getRoleHomeRoute(role), { replace: true });
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
 
@@ -110,7 +110,7 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    const res = registerNewStaff({
+    const res = await registerNewStaff({
       name: regForm.name,
       email: regForm.email,
       password: regForm.password,
@@ -160,7 +160,9 @@ export const LoginPage: React.FC = () => {
     }
     setForgotResult({
       type: 'success',
-      text: `Demonstration Reset Link Prepared for ${matched.name} (${getRoleLabel(matched.role)}). Demo password: "${matched.password}".`,
+      text: matched.password
+        ? `Demonstration Reset Link Prepared for ${matched.name} (${getRoleLabel(matched.role)}). Demo password: "${matched.password}".`
+        : `Account verified for ${matched.name} (${getRoleLabel(matched.role)}). Contact your hospital administrator to reset your MySQL account password.`,
     });
   };
 

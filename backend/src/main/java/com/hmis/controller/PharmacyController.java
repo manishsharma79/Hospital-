@@ -30,6 +30,18 @@ public class PharmacyController {
         return pharmacyService.saveMedicine(medicine);
     }
 
+    @DeleteMapping("/medicines/{id}")
+    public Map<String, Object> deleteMedicine(@PathVariable Long id) {
+        pharmacyService.deleteMedicine(id);
+        return Map.of("ok", true, "message", "Medicine removed from inventory.");
+    }
+
+    @PatchMapping("/medicines/{id}/stock")
+    public Medicine adjustStock(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        int delta = Integer.parseInt(body.getOrDefault("delta", "0").toString());
+        return pharmacyService.adjustMedicineStock(id, delta);
+    }
+
     @GetMapping("/prescriptions")
     public List<Prescription> getPrescriptions() {
         return pharmacyService.getAllPrescriptions();
@@ -62,9 +74,14 @@ public class PharmacyController {
         return pharmacyService.getAllBills();
     }
 
+    @PostMapping("/bills")
+    public Bill createBill(@Valid @RequestBody Bill bill) {
+        return pharmacyService.generateBill(bill);
+    }
+
     @PostMapping("/bills/{id}/pay")
     public Bill payBill(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        Double amount = Double.valueOf(body.get("amount").toString());
+        Double amount = Double.valueOf(body.getOrDefault("amount", "0").toString());
         String method = body.getOrDefault("method", "Cash").toString();
         return pharmacyService.recordPayment(id, amount, method);
     }

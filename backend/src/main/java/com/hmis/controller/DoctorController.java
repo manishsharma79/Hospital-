@@ -28,6 +28,11 @@ public class DoctorController {
         this.diagnosticReportRepo = diagnosticReportRepo;
     }
 
+    @GetMapping("/records")
+    public List<MedicalRecord> getAllRecords() {
+        return medicalRecordRepo.findAll();
+    }
+
     @GetMapping("/records/{patientId}")
     public List<MedicalRecord> getPatientRecords(@PathVariable Long patientId) {
         return medicalRecordRepo.findByPatientIdOrderByVisitDateDesc(patientId);
@@ -62,5 +67,19 @@ public class DoctorController {
             report.setReportNo("LAB-" + (4001 + diagnosticReportRepo.count()));
         }
         return diagnosticReportRepo.save(report);
+    }
+
+    @PatchMapping("/diagnostics/{id}")
+    public DiagnosticReport updateDiagnostic(
+            @PathVariable Long id,
+            @RequestBody DiagnosticReport updates) {
+        DiagnosticReport existing = diagnosticReportRepo.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Diagnostic report not found: " + id));
+        if (updates.getStatus() != null) existing.setStatus(updates.getStatus());
+        existing.setFindings(updates.getFindings());
+        existing.setReferenceRange(updates.getReferenceRange());
+        existing.setResultFlag(updates.getResultFlag());
+        existing.setCompletedDate(updates.getCompletedDate());
+        return diagnosticReportRepo.save(existing);
     }
 }

@@ -1,5 +1,6 @@
 package com.hmis.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
@@ -15,7 +16,7 @@ public class UserAccount extends Person {
     @Column(nullable = false)
     private String name;
 
-    @NotBlank(message = "Password required")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(nullable = false)
     private String password;
 

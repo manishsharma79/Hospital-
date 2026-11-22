@@ -43,6 +43,24 @@ public class AdminController {
         return staffService.saveStaff(user);
     }
 
+    @PatchMapping("/staff/{id}/status")
+    public UserAccount toggleStaffStatus(@PathVariable Long id) {
+        return staffService.toggleStaffStatus(id);
+    }
+
+    @PatchMapping("/staff/{id}/availability")
+    public UserAccount updateDoctorAvailability(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        return staffService.updateDoctorAvailability(id, body.getOrDefault("availabilityStatus", "Available"));
+    }
+
+    @DeleteMapping("/staff/{id}")
+    public Map<String, Object> deleteStaff(@PathVariable Long id) {
+        staffService.deleteStaff(id);
+        return Map.of("ok", true, "message", "Staff account removed.");
+    }
+
     @GetMapping("/departments")
     public List<Department> getAllDepartments() {
         return staffService.getAllDepartments();
@@ -53,6 +71,12 @@ public class AdminController {
         return staffService.saveDepartment(department);
     }
 
+    @DeleteMapping("/departments/{id}")
+    public Map<String, Object> deleteDepartment(@PathVariable Long id) {
+        staffService.deleteDepartment(id);
+        return Map.of("ok", true, "message", "Department deleted.");
+    }
+
     @GetMapping("/schedules")
     public List<StaffSchedule> getAllSchedules() {
         return staffService.getAllSchedules();
@@ -61,6 +85,12 @@ public class AdminController {
     @PostMapping("/schedules")
     public StaffSchedule saveSchedule(@Valid @RequestBody StaffSchedule schedule) {
         return staffService.saveSchedule(schedule);
+    }
+
+    @DeleteMapping("/schedules/{id}")
+    public Map<String, Object> deleteSchedule(@PathVariable Long id) {
+        staffService.deleteSchedule(id);
+        return Map.of("ok", true, "message", "Schedule removed.");
     }
 
     @GetMapping("/overview")

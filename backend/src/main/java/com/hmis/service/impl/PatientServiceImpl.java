@@ -42,8 +42,21 @@ public class PatientServiceImpl implements PatientService {
     @Override
     @Transactional
     public Patient registerPatient(Patient patient) {
-        long seq = 1001 + patientRepository.count();
-        patient.setPatientId("PAT-" + Year.now().getValue() + "-" + seq);
+        int year = Year.now().getValue();
+        String prefix = "PAT-" + year + "-";
+        long maxSeq = patientRepository.findAll().stream()
+                .map(Patient::getPatientId)
+                .filter(id -> id != null && id.startsWith(prefix))
+                .mapToLong(id -> {
+                    try {
+                        return Long.parseLong(id.substring(prefix.length()));
+                    } catch (NumberFormatException e) {
+                        return 1000L;
+                    }
+                })
+                .max()
+                .orElse(1000L);
+        patient.setPatientId(prefix + Math.max(1001L, maxSeq + 1));
         return patientRepository.save(patient);
     }
 

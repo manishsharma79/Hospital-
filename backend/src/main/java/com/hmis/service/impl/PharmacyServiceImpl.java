@@ -35,16 +35,77 @@ public class PharmacyServiceImpl implements PharmacyService {
     @Override
     @Transactional
     public Medicine saveMedicine(Medicine medicine) {
+        if (medicine.getId() != null) {
+            Medicine existing = medicineRepository.findById(medicine.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Medicine not found: " + medicine.getId()));
+            existing.setName(medicine.getName());
+            existing.setBatchNumber(medicine.getBatchNumber());
+            existing.setCategory(medicine.getCategory());
+            existing.setAvailableQuantity(medicine.getAvailableQuantity());
+            existing.setReorderLevel(medicine.getReorderLevel());
+            existing.setUnitPrice(medicine.getUnitPrice());
+            existing.setExpiryDate(medicine.getExpiryDate());
+            existing.setSupplier(medicine.getSupplier());
+            return medicineRepository.save(existing);
+        }
         if (medicine.getMedicineId() == null || medicine.getMedicineId().isBlank()) {
-            long seq = 1001 + medicineRepository.count();
-            medicine.setMedicineId("MED-" + seq);
+            long maxSeq = medicineRepository.findAll().stream()
+                    .map(Medicine::getMedicineId)
+                    .filter(code -> code != null && code.startsWith("MED-"))
+                    .mapToLong(code -> {
+                        try {
+                            return Long.parseLong(code.substring(4));
+                        } catch (NumberFormatException e) {
+                            return 1000L;
+                        }
+                    })
+                    .max()
+                    .orElse(1000L);
+            medicine.setMedicineId("MED-" + Math.max(1001L, maxSeq + 1));
         }
         return medicineRepository.save(medicine);
     }
 
     @Override
+    @Transactional
+    public void deleteMedicine(Long id) {
+        medicineRepository.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public Medicine adjustMedicineStock(Long id, int delta) {
+        Medicine med = medicineRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Medicine not found: " + id));
+        int current = med.getAvailableQuantity() != null ? med.getAvailableQuantity() : 0;
+        int next = current + delta;
+        if (next < 0) {
+            throw new IllegalStateException("Stock quantity cannot drop below zero.");
+        }
+        med.setAvailableQuantity(next);
+        return medicineRepository.save(med);
+    }
+
+    @Override
     public List<Prescription> getAllPrescriptions() {
         return prescriptionRepository.findAll();
+    }
+
+    private String nextBillNo() {
+        long maxSeq = billRepository.findAll().stream()
+                .map(Bill::getBillNo)
+                .filter(code -> code != null && (code.startsWith("BILL-") || code.startsWith("INV-")))
+                .mapToLong(code -> {
+                    try {
+                        int dash = code.indexOf('-');
+                        return Long.parseLong(code.substring(dash + 1));
+                    } catch (NumberFormatException e) {
+                        return 3000L;
+                    }
+                })
+                .max()
+                .orElse(3000L);
+        return "INV-" + Math.max(3001L, maxSeq + 1);
     }
 
     @Override
@@ -58,7 +119,7 @@ public class PharmacyServiceImpl implements PharmacyService {
         }
 
         Bill bill = new Bill();
-        bill.setBillNo("BILL-" + (5001 + billRepository.count()));
+        bill.setBillNo(nextBillNo());
         bill.setPatientId(rx.getPatientId());
         bill.setPrescriptionId(rx.getId());
         bill.setGeneratedBy(pharmacistId);
@@ -115,17 +176,44 @@ public class PharmacyServiceImpl implements PharmacyService {
 
     @Override
     @Transactional
+    public Bill generateBill(Bill bill) {
+        if (bill.getBillNo() == null || bill.getBillNo().isBlank()) {
+            bill.setBillNo(nextBillNo());
+        }
+        if (bill.getItems() != null) {
+            bill.getItems().forEach(item -> item.setBill(bill));
+        }
+        bill.recalculateTotals();
+        if ("Paid".equalsIgnoreCase(bill.getPaymentStatus())) {
+            bill.setPaidAmount(bill.getGrandTotal());
+            if (bill.getPaidDate() == null) {
+                bill.setPaidDate(LocalDate.now());
+            }
+        } else if ("Partial".equalsIgnoreCase(bill.getPaymentStatus())) {
+            double paid = bill.getPaidAmount() != null ? bill.getPaidAmount() : 0.0;
+            bill.setPaidAmount(Math.min(bill.getGrandTotal(), Math.max(0.0, paid)));
+        } else {
+            bill.setPaymentStatus("Unpaid");
+            bill.setPaidAmount(0.0);
+        }
+        return billRepository.save(bill);
+    }
+
+    @Override
+    @Transactional
     public Bill recordPayment(Long billId, Double amount, String method) {
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() -> new IllegalArgumentException("Bill not found: " + billId));
-        double newPaid = (bill.getPaidAmount() != null ? bill.getPaidAmount() : 0.0) + amount;
-        bill.setPaidAmount(Math.min(bill.getGrandTotal(), newPaid));
+        double targetPaid = amount != null ? amount : 0.0;
+        bill.setPaidAmount(Math.min(bill.getGrandTotal(), Math.max(0.0, targetPaid)));
         bill.setPaymentMethod(method);
         if (bill.getPaidAmount() >= bill.getGrandTotal()) {
             bill.setPaymentStatus("Paid");
             bill.setPaidDate(LocalDate.now());
         } else if (bill.getPaidAmount() > 0) {
             bill.setPaymentStatus("Partial");
+        } else {
+            bill.setPaymentStatus("Unpaid");
         }
         return billRepository.save(bill);
     }

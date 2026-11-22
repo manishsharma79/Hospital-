@@ -1,5 +1,6 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createInitialSeedData } from '../data/seedData';
+import { ApiError, getApiBaseUrl, hmisApi, toNumericId } from '../services/hmisApi';
 import {
   ActivityLog,
   Appointment,
@@ -29,6 +30,7 @@ import {
   getMedicineExpiryStatus,
   getTodayISO,
 } from '../utils/hmisHelpers';
+import { useToast } from './ToastContext';
 
 const STORAGE_KEY = 'hmis_db_v3';
 const SESSION_KEY = 'hmis_session_v3';
@@ -42,7 +44,8 @@ interface ActionResult {
 interface HMISContextValue {
   db: HMISDatabase;
   currentUser: UserAccount | null;
-  login: (email: string, password: string, role: UserRole) => ActionResult;
+  backendConnected: boolean;
+  login: (email: string, password: string, role: UserRole) => Promise<ActionResult>;
   logout: () => void;
   registerNewStaff: (payload: {
     name: string;
@@ -53,17 +56,21 @@ interface HMISContextValue {
     phone: string;
     qualification?: string;
     specialization?: string;
-  }) => ActionResult;
+  }) => Promise<ActionResult>;
   resetDemoDatabase: () => void;
 
   // Admin: Staff & Doctors
-  saveStaffMember: (staff: Omit<UserAccount, 'id' | 'staffCode' | 'joinedDate'> & { id?: string }) => ActionResult;
+  saveStaffMember: (
+    staff: Omit<UserAccount, 'id' | 'staffCode' | 'joinedDate'> & { id?: string }
+  ) => ActionResult;
   toggleStaffStatus: (staffId: string) => void;
   updateDoctorAvailability: (doctorId: string, status: AvailabilityStatus) => void;
   deleteStaffMember: (staffId: string) => ActionResult;
 
   // Admin: Departments
-  saveDepartment: (dept: Omit<Department, 'id' | 'code' | 'createdAt'> & { id?: string }) => ActionResult;
+  saveDepartment: (
+    dept: Omit<Department, 'id' | 'code' | 'createdAt'> & { id?: string }
+  ) => ActionResult;
   deleteDepartment: (deptId: string) => ActionResult;
 
   // Admin: Roles & Permissions
@@ -91,7 +98,9 @@ interface HMISContextValue {
   updateAppointmentStatus: (id: string, status: AppointmentStatus) => void;
 
   // Doctor: Clinical Records, Prescriptions & Diagnostics
-  addMedicalRecord: (payload: Omit<MedicalRecord, 'id'>) => ActionResult & { record?: MedicalRecord };
+  addMedicalRecord: (
+    payload: Omit<MedicalRecord, 'id'>
+  ) => ActionResult & { record?: MedicalRecord };
   createPrescription: (
     payload: Omit<Prescription, 'id' | 'prescriptionNo' | 'status'>
   ) => ActionResult & { prescription?: Prescription };
@@ -100,7 +109,10 @@ interface HMISContextValue {
   ) => ActionResult;
   updateDiagnosticReport: (
     id: string,
-    updates: Pick<DiagnosticReport, 'status' | 'findings' | 'referenceRange' | 'resultFlag' | 'completedDate'>
+    updates: Pick<
+      DiagnosticReport,
+      'status' | 'findings' | 'referenceRange' | 'resultFlag' | 'completedDate'
+    >
   ) => ActionResult;
 
   // Pharmacist: Inventory, Verification & Billing
@@ -150,7 +162,11 @@ function loadDatabase(): HMISDatabase {
 }
 
 export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { showToast } = useToast();
   const [db, setDb] = useState<HMISDatabase>(() => loadDatabase());
+  const dbRef = useRef<HMISDatabase>(db);
+  dbRef.current = db;
+
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
     try {
       return localStorage.getItem(SESSION_KEY);
@@ -158,6 +174,10 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     }
   });
+
+  const [backendConnected, setBackendConnected] = useState(false);
+  const [isHydrating, setIsHydrating] = useState(() => getApiBaseUrl() !== null);
+  const syncQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     try {
@@ -167,7 +187,93 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [db]);
 
-  const currentUser = db.users.find((u) => u.id === currentUserId && u.status === 'Active') || null;
+  const refreshFromBackend = useCallback(async () => {
+    const remoteDb = await hmisApi.fetchBootstrap(dbRef.current);
+    setDb(remoteDb);
+    setBackendConnected(true);
+    setCurrentUserId((prevSessionId) => {
+      if (!prevSessionId) return null;
+      const valid = remoteDb.users.some(
+        (u) => u.id === prevSessionId && u.status === 'Active'
+      );
+      if (!valid) {
+        localStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+      return prevSessionId;
+    });
+    return remoteDb;
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const baseUrl = getApiBaseUrl();
+    if (!baseUrl) {
+      setIsHydrating(false);
+      return;
+    }
+
+    hmisApi
+      .fetchBootstrap(dbRef.current)
+      .then((remoteDb) => {
+        if (!mounted) return;
+        setDb(remoteDb);
+        setBackendConnected(true);
+        setCurrentUserId((prevSessionId) => {
+          if (!prevSessionId) return null;
+          const valid = remoteDb.users.some(
+            (u) => u.id === prevSessionId && u.status === 'Active'
+          );
+          if (!valid) {
+            localStorage.removeItem(SESSION_KEY);
+            return null;
+          }
+          return prevSessionId;
+        });
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setBackendConnected(false);
+      })
+      .finally(() => {
+        if (mounted) {
+          setIsHydrating(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const enqueueBackendSync = useCallback(
+    (task: () => Promise<void>) => {
+      if (!backendConnected) return;
+      syncQueueRef.current = syncQueueRef.current
+        .then(async () => {
+          await task();
+          await refreshFromBackend();
+        })
+        .catch(async (err: unknown) => {
+          const message =
+            err instanceof ApiError
+              ? err.message
+              : err instanceof Error
+              ? err.message
+              : 'Unable to sync change with MySQL backend.';
+          showToast('error', 'Backend Sync Error', message);
+          try {
+            await refreshFromBackend();
+          } catch {
+            // Backend unreachable; keep current state
+          }
+        });
+    },
+    [backendConnected, refreshFromBackend, showToast]
+  );
+
+  const currentUser =
+    db.users.find((u) => u.id === currentUserId && u.status === 'Active') || null;
 
   const appendLog = useCallback(
     (
@@ -191,7 +297,32 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const login = useCallback(
-    (email: string, password: string, role: UserRole): ActionResult => {
+    async (email: string, password: string, role: UserRole): Promise<ActionResult> => {
+      if (backendConnected) {
+        try {
+          const res = await hmisApi.login(email, password, role);
+          localStorage.setItem(SESSION_KEY, res.user.id);
+          setCurrentUserId(res.user.id);
+          await refreshFromBackend();
+          setDb((prev) => ({
+            ...prev,
+            activityLogs: appendLog(
+              prev,
+              'Staff Sign-In',
+              `${res.user.name} signed in as ${res.user.role}.`,
+              res.user
+            ),
+          }));
+          return { ok: true, message: res.message };
+        } catch (err) {
+          const message =
+            err instanceof ApiError
+              ? err.message
+              : 'Unable to reach backend authentication service.';
+          return { ok: false, message };
+        }
+      }
+
       const normalized = email.trim().toLowerCase();
       const user = db.users.find((u) => u.email.toLowerCase() === normalized);
       if (!user) {
@@ -220,7 +351,7 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }));
       return { ok: true, message: `Welcome back, ${user.name}.` };
     },
-    [db.users, appendLog]
+    [backendConnected, db.users, appendLog, refreshFromBackend]
   );
 
   const logout = useCallback(() => {
@@ -229,7 +360,7 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const registerNewStaff = useCallback(
-    (payload: {
+    async (payload: {
       name: string;
       email: string;
       password: string;
@@ -238,11 +369,49 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
       phone: string;
       qualification?: string;
       specialization?: string;
-    }): ActionResult => {
+    }): Promise<ActionResult> => {
       const emailClean = payload.email.trim().toLowerCase();
       if (db.users.some((u) => u.email.toLowerCase() === emailClean)) {
         return { ok: false, message: 'An account with this email address already exists.' };
       }
+
+      if (backendConnected) {
+        try {
+          const saved = await hmisApi.saveStaff({
+            name: payload.name.trim(),
+            email: emailClean,
+            password: payload.password,
+            role: payload.role,
+            departmentId: payload.departmentId,
+            phone: payload.phone.trim(),
+            status: 'Active',
+            qualification: payload.qualification?.trim() || '',
+            specialization: payload.specialization?.trim() || '',
+            consultationFee: payload.role === 'doctor' ? 500 : undefined,
+            availabilityStatus: payload.role === 'doctor' ? 'Available' : undefined,
+          });
+          await refreshFromBackend();
+          setDb((prev) => ({
+            ...prev,
+            activityLogs: appendLog(
+              prev,
+              'New Staff Registered',
+              `${saved.name} (${saved.staffCode}) registered for ${saved.role} portal.`,
+              saved
+            ),
+          }));
+          return {
+            ok: true,
+            message: `Staff account ${saved.staffCode} created. You may now sign in.`,
+            id: saved.id,
+          };
+        } catch (err) {
+          const message =
+            err instanceof ApiError ? err.message : 'Failed to register staff in MySQL.';
+          return { ok: false, message };
+        }
+      }
+
       const staffCode = generatePrefixedCode(
         'STF',
         db.users.map((u) => u.staffCode),
@@ -280,16 +449,26 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: newUser.id,
       };
     },
-    [db.users, appendLog]
+    [backendConnected, db.users, appendLog, refreshFromBackend]
   );
 
   const resetDemoDatabase = useCallback(() => {
+    if (backendConnected) {
+      refreshFromBackend()
+        .then(() => {
+          showToast('info', 'MySQL Refreshed', 'Reloaded live records from Spring Boot + MySQL.');
+        })
+        .catch(() => {
+          showToast('error', 'Refresh Failed', 'Could not reload data from Spring Boot.');
+        });
+      return;
+    }
     const fresh = createInitialSeedData();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
     localStorage.removeItem(SESSION_KEY);
     setCurrentUserId(null);
     setDb(fresh);
-  }, []);
+  }, [backendConnected, refreshFromBackend, showToast]);
 
   const saveStaffMember = useCallback(
     (
@@ -313,12 +492,17 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   ...staff,
                   email: emailClean,
                   availabilityStatus:
-                    staff.role === 'doctor' ? staff.availabilityStatus || u.availabilityStatus || 'Available' : undefined,
+                    staff.role === 'doctor'
+                      ? staff.availabilityStatus || u.availabilityStatus || 'Available'
+                      : undefined,
                 }
               : u
           ),
           activityLogs: appendLog(prev, 'Staff Updated', `Updated profile for ${staff.name}.`),
         }));
+        enqueueBackendSync(async () => {
+          await hmisApi.saveStaff(staff);
+        });
         return { ok: true, message: `${staff.name} updated successfully.` };
       }
 
@@ -333,7 +517,8 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
         staffCode,
         email: emailClean,
         joinedDate: getTodayISO(),
-        availabilityStatus: staff.role === 'doctor' ? staff.availabilityStatus || 'Available' : undefined,
+        availabilityStatus:
+          staff.role === 'doctor' ? staff.availabilityStatus || 'Available' : undefined,
       };
       setDb((prev) => ({
         ...prev,
@@ -344,9 +529,12 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Created ${created.name} (${created.staffCode}) as ${created.role}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.saveStaff(staff);
+      });
       return { ok: true, message: `Staff member ${created.name} (${staffCode}) created.` };
     },
-    [db.users, appendLog]
+    [db.users, appendLog, enqueueBackendSync]
   );
 
   const toggleStaffStatus = useCallback(
@@ -365,8 +553,13 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ),
         };
       });
+      if (toNumericId(staffId) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.toggleStaffStatus(staffId);
+        });
+      }
     },
-    [appendLog]
+    [appendLog, enqueueBackendSync]
   );
 
   const updateDoctorAvailability = useCallback(
@@ -385,8 +578,13 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ),
         };
       });
+      if (toNumericId(doctorId) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.updateDoctorAvailability(doctorId, status);
+        });
+      }
     },
-    [appendLog]
+    [appendLog, enqueueBackendSync]
   );
 
   const deleteStaffMember = useCallback(
@@ -405,9 +603,14 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Removed staff record for ${target?.name || staffId}.`
         ),
       }));
+      if (toNumericId(staffId) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.deleteStaff(staffId);
+        });
+      }
       return { ok: true, message: 'Staff account removed.' };
     },
-    [currentUserId, db.users, appendLog]
+    [currentUserId, db.users, appendLog, enqueueBackendSync]
   );
 
   const saveDepartment = useCallback(
@@ -426,6 +629,9 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ),
           activityLogs: appendLog(prev, 'Department Updated', `Updated department ${dept.name}.`),
         }));
+        enqueueBackendSync(async () => {
+          await hmisApi.saveDepartment(dept);
+        });
         return { ok: true, message: `Department "${dept.name}" updated.` };
       }
 
@@ -450,9 +656,12 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Created department ${created.name} (${created.code}).`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.saveDepartment(dept);
+      });
       return { ok: true, message: `Department "${created.name}" created.` };
     },
-    [db.departments, appendLog]
+    [db.departments, appendLog, enqueueBackendSync]
   );
 
   const deleteDepartment = useCallback(
@@ -474,9 +683,14 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Deleted department ${target?.name || deptId}.`
         ),
       }));
+      if (toNumericId(deptId) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.deleteDepartment(deptId);
+        });
+      }
       return { ok: true, message: 'Department deleted.' };
     },
-    [db.users, db.departments, appendLog]
+    [db.users, db.departments, appendLog, enqueueBackendSync]
   );
 
   const updateRolePermission = useCallback(
@@ -508,6 +722,9 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ),
           activityLogs: appendLog(prev, 'Schedule Updated', `Updated shift on ${schedule.shiftDate}.`),
         }));
+        enqueueBackendSync(async () => {
+          await hmisApi.saveSchedule(schedule);
+        });
         return { ok: true, message: 'Shift schedule updated.' };
       }
       const created: StaffSchedule = {
@@ -523,17 +740,28 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Assigned ${schedule.shiftType} on ${schedule.shiftDate}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.saveSchedule(schedule);
+      });
       return { ok: true, message: 'Shift schedule assigned.' };
     },
-    [appendLog]
+    [appendLog, enqueueBackendSync]
   );
 
-  const deleteSchedule = useCallback((scheduleId: string) => {
-    setDb((prev) => ({
-      ...prev,
-      schedules: prev.schedules.filter((s) => s.id !== scheduleId),
-    }));
-  }, []);
+  const deleteSchedule = useCallback(
+    (scheduleId: string) => {
+      setDb((prev) => ({
+        ...prev,
+        schedules: prev.schedules.filter((s) => s.id !== scheduleId),
+      }));
+      if (toNumericId(scheduleId) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.deleteSchedule(scheduleId);
+        });
+      }
+    },
+    [enqueueBackendSync]
+  );
 
   const registerPatient = useCallback(
     (
@@ -557,6 +785,9 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Registered ${newPatient.fullName} (${newPatient.patientId}) — ${newPatient.registrationType}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.registerPatient(payload);
+      });
       return {
         ok: true,
         message: `Patient registered with ID ${patientId}.`,
@@ -564,11 +795,20 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
         patient: newPatient,
       };
     },
-    [db.patients, appendLog]
+    [db.patients, appendLog, enqueueBackendSync]
   );
 
   const updatePatient = useCallback(
     (id: string, updates: Partial<Patient>): ActionResult => {
+      const existing = db.patients.find((p) => p.id === id);
+      const mergedPatient: Patient | null = existing
+        ? {
+            ...existing,
+            ...updates,
+            age: calculateAgeFromDOB(updates.dob ?? existing.dob),
+          }
+        : null;
+
       setDb((prev) => ({
         ...prev,
         patients: prev.patients.map((p) => {
@@ -586,9 +826,15 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Updated patient record ${updates.fullName || id}.`
         ),
       }));
+
+      if (mergedPatient && toNumericId(id) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.updatePatient(id, mergedPatient);
+        });
+      }
       return { ok: true, message: 'Patient details updated.' };
     },
-    [appendLog]
+    [db.patients, appendLog, enqueueBackendSync]
   );
 
   const deletePatient = useCallback(
@@ -604,9 +850,14 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Deleted patient ${target?.fullName || ''} (${target?.patientId || id}).`
         ),
       }));
+      if (toNumericId(id) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.deletePatient(id);
+        });
+      }
       return { ok: true, message: 'Patient record deleted.' };
     },
-    [db.patients, appendLog]
+    [db.patients, appendLog, enqueueBackendSync]
   );
 
   const createAppointment = useCallback(
@@ -655,9 +906,12 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `${appointmentNo}: ${patient?.fullName || 'Patient'} with ${doctor?.name || 'Doctor'} on ${payload.date} at ${payload.timeSlot}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.createAppointment(payload, currentUser?.id);
+      });
       return { ok: true, message: `Appointment ${appointmentNo} scheduled.`, id: created.id };
     },
-    [db.users, db.appointments, db.patients, currentUser, appendLog]
+    [db.users, db.appointments, db.patients, currentUser, appendLog, enqueueBackendSync]
   );
 
   const updateAppointmentStatus = useCallback(
@@ -667,8 +921,13 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
         appointments: prev.appointments.map((a) => (a.id === id ? { ...a, status } : a)),
         activityLogs: appendLog(prev, 'Appointment Status', `Updated appointment status to ${status}.`),
       }));
+      if (toNumericId(id) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.updateAppointmentStatus(id, status);
+        });
+      }
     },
-    [appendLog]
+    [appendLog, enqueueBackendSync]
   );
 
   const addMedicalRecord = useCallback(
@@ -687,9 +946,12 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Added clinical note (${payload.diagnosis}) for ${patient?.fullName || 'patient'}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.addMedicalRecord(payload);
+      });
       return { ok: true, message: 'Clinical diagnosis and progress saved.', record };
     },
-    [db.patients, appendLog]
+    [db.patients, appendLog, enqueueBackendSync]
   );
 
   const createPrescription = useCallback(
@@ -720,13 +982,16 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Issued ${prescriptionNo} (${payload.items.length} items) for ${patient?.fullName || 'patient'}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.createPrescription(payload);
+      });
       return {
         ok: true,
         message: `Prescription ${prescriptionNo} sent to Clinical Pharmacy.`,
         prescription,
       };
     },
-    [db.prescriptions, db.patients, appendLog]
+    [db.prescriptions, db.patients, appendLog, enqueueBackendSync]
   );
 
   const requestDiagnosticTest = useCallback(
@@ -752,15 +1017,21 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Ordered ${payload.testName} (${reportNo}) for ${patient?.fullName || 'patient'}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.requestDiagnosticTest(payload);
+      });
       return { ok: true, message: `Diagnostic request ${reportNo} created.` };
     },
-    [db.diagnosticReports, db.patients, appendLog]
+    [db.diagnosticReports, db.patients, appendLog, enqueueBackendSync]
   );
 
   const updateDiagnosticReport = useCallback(
     (
       id: string,
-      updates: Pick<DiagnosticReport, 'status' | 'findings' | 'referenceRange' | 'resultFlag' | 'completedDate'>
+      updates: Pick<
+        DiagnosticReport,
+        'status' | 'findings' | 'referenceRange' | 'resultFlag' | 'completedDate'
+      >
     ): ActionResult => {
       setDb((prev) => ({
         ...prev,
@@ -773,9 +1044,14 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Updated diagnostic report status to ${updates.status}.`
         ),
       }));
+      if (toNumericId(id) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.updateDiagnosticReport(id, updates);
+        });
+      }
       return { ok: true, message: 'Diagnostic report updated.' };
     },
-    [appendLog]
+    [appendLog, enqueueBackendSync]
   );
 
   const saveMedicine = useCallback(
@@ -795,6 +1071,9 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
             `Updated inventory for ${payload.name} (Batch ${payload.batchNumber}).`
           ),
         }));
+        enqueueBackendSync(async () => {
+          await hmisApi.saveMedicine(payload);
+        });
         return { ok: true, message: `Medicine "${payload.name}" updated.` };
       }
       const medicineId = generatePrefixedCode(
@@ -817,9 +1096,12 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Added ${created.name} (${medicineId}) — Qty: ${created.availableQuantity}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.saveMedicine(payload);
+      });
       return { ok: true, message: `Medicine ${created.name} (${medicineId}) added to inventory.` };
     },
-    [db.medicines, appendLog]
+    [db.medicines, appendLog, enqueueBackendSync]
   );
 
   const deleteMedicine = useCallback(
@@ -834,9 +1116,14 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Removed ${target?.name || id} from inventory.`
         ),
       }));
+      if (toNumericId(id) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.deleteMedicine(id);
+        });
+      }
       return { ok: true, message: 'Medicine removed from inventory.' };
     },
-    [db.medicines, appendLog]
+    [db.medicines, appendLog, enqueueBackendSync]
   );
 
   const adjustMedicineStock = useCallback(
@@ -858,9 +1145,14 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `${med.name}: ${delta >= 0 ? `+${delta}` : delta} units (New stock: ${nextQty}).`
         ),
       }));
+      if (toNumericId(id) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.adjustMedicineStock(id, delta);
+        });
+      }
       return { ok: true, message: `Stock updated to ${nextQty} units.` };
     },
-    [db.medicines, appendLog]
+    [db.medicines, appendLog, enqueueBackendSync]
   );
 
   const verifyAndDispensePrescription = useCallback(
@@ -871,7 +1163,6 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { ok: false, message: `Prescription is already ${rx.status}.` };
       }
 
-      // Validate stock availability and expiry safety for every item
       for (const item of rx.items) {
         const med = db.medicines.find((m) => m.id === item.medicineId);
         if (!med) {
@@ -895,7 +1186,6 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Deduct stock and generate invoice automatically if none exists
       const billNo = generatePrefixedCode(
         'INV',
         db.bills.map((b) => b.billNo),
@@ -905,7 +1195,7 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const doctor = db.users.find((u) => u.id === rx.doctorId);
 
       const billItems: BillLineItem[] = [];
-      if (doctor?.consultationFee) {
+      if (doctor?.consultationFee && !backendConnected) {
         billItems.push({
           description: `Consultation (${doctor.name})`,
           category: 'Consultation',
@@ -976,12 +1266,32 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ),
       }));
 
+      if (toNumericId(prescriptionId) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.verifyAndDispensePrescription(
+            prescriptionId,
+            currentUser?.id,
+            pharmacistNotes
+          );
+        });
+      }
+
       return {
         ok: true,
         message: `${rx.prescriptionNo} verified & dispensed. Stock updated and invoice ${billNo} generated.`,
       };
     },
-    [db.prescriptions, db.medicines, db.bills, db.patients, db.users, currentUser, appendLog]
+    [
+      backendConnected,
+      db.prescriptions,
+      db.medicines,
+      db.bills,
+      db.patients,
+      db.users,
+      currentUser,
+      appendLog,
+      enqueueBackendSync,
+    ]
   );
 
   const rejectPrescription = useCallback(
@@ -1007,9 +1317,14 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Rejected ${rx.prescriptionNo}: ${reason.trim() || 'Clarification required'}.`
         ),
       }));
+      if (toNumericId(prescriptionId) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.rejectPrescription(prescriptionId, currentUser?.id, reason);
+        });
+      }
       return { ok: true, message: `${rx.prescriptionNo} marked as Rejected.` };
     },
-    [db.prescriptions, currentUser, appendLog]
+    [db.prescriptions, currentUser, appendLog, enqueueBackendSync]
   );
 
   const generateBill = useCallback(
@@ -1066,9 +1381,15 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `Generated ${billNo} (₹${grandTotal.toFixed(2)}) for ${patient?.fullName || 'patient'}.`
         ),
       }));
+      enqueueBackendSync(async () => {
+        await hmisApi.generateBill({
+          ...payload,
+          generatedById: currentUser?.id,
+        });
+      });
       return { ok: true, message: `Bill ${billNo} generated.`, bill };
     },
-    [db.bills, db.patients, currentUser, appendLog]
+    [db.bills, db.patients, currentUser, appendLog, enqueueBackendSync]
   );
 
   const updateBillPayment = useCallback(
@@ -1105,16 +1426,35 @@ export const HMISProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `${target.billNo} marked ${paymentStatus} via ${paymentMethod}.`
         ),
       }));
+      if (toNumericId(billId) !== null) {
+        enqueueBackendSync(async () => {
+          await hmisApi.updateBillPayment(billId, finalPaid, paymentMethod);
+        });
+      }
       return { ok: true, message: `Invoice ${target.billNo} updated to ${paymentStatus}.` };
     },
-    [db.bills, appendLog]
+    [db.bills, appendLog, enqueueBackendSync]
   );
+
+  if (isHydrating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="text-center space-y-2">
+          <div className="h-8 w-8 mx-auto rounded-full border-2 border-[#0F2942] border-t-transparent animate-spin dark:border-blue-400 dark:border-t-transparent" />
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            Connecting to Hospital Management System...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <HMISContext.Provider
       value={{
         db,
         currentUser,
+        backendConnected,
         login,
         logout,
         registerNewStaff,

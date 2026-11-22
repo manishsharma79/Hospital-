@@ -36,8 +36,19 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new IllegalStateException("Selected doctor already has an appointment for this time slot.");
         }
 
-        long seq = 2001 + appointmentRepository.count();
-        appointment.setAppointmentNo("APT-" + seq);
+        long maxSeq = appointmentRepository.findAll().stream()
+                .map(Appointment::getAppointmentNo)
+                .filter(no -> no != null && no.startsWith("APT-"))
+                .mapToLong(no -> {
+                    try {
+                        return Long.parseLong(no.substring(4));
+                    } catch (NumberFormatException e) {
+                        return 2000L;
+                    }
+                })
+                .max()
+                .orElse(2000L);
+        appointment.setAppointmentNo("APT-" + Math.max(2001L, maxSeq + 1));
         return appointmentRepository.save(appointment);
     }
 
