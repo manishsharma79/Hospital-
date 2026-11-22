@@ -12,10 +12,10 @@ Use the role quick-fill cards on the login page or enter these demonstration cre
 
 | Role | Name | Email | Password |
 | :--- | :--- | :--- | :--- |
-| **Administrator** | Priya Nair | `admin@hmis.in` | `Admin@123` |
+| **Administrator** | Neha Kumari | `admin@hmis.in` | `Admin@123` |
 | **Registration Staff** | Manish Sharma | `desk@hmis.in` | `Desk@123` |
-| **Doctor** | Dr. Aarav Patel | `dr.patel@hmis.in` | `Doctor@123` |
-| **Pharmacist** | Anjali Kulkarni | `pharma@hmis.in` | `Pharma@123` |
+| **Doctor** | Dr. Nisha Kumari | `dr.nisha@hmis.in` | `Doctor@123` |
+| **Pharmacist** | Atit Kumar | `pharma@hmis.in` | `Pharma@123` |
 
 Additional seeded physician accounts (all use `Doctor@123`):
 - `dr.iyer@hmis.in` — Dr. Kavita Iyer (Internal Medicine)
@@ -121,6 +121,6 @@ This project is pre-configured for GitHub Pages:
 ---
 
 ## Known Limitations
-- **Client-Side Storage Only**: All data lives in browser `localStorage` (`hmis_db_v2`). Clearing browser site data resets changes (a "Reset Demo Data" button is also available on the login screen).
+- **Client-Side Storage Only**: All data lives in browser `localStorage` (`hmis_db_v3`). Clearing browser site data resets changes.
 - **Single-Browser Scope**: Data created in one browser or device is not synchronized across other devices because there is no backend database or API.
 - **Demonstration Auth**: Passwords are stored in plain demonstration seed objects in `localStorage` for easy testing across roles.

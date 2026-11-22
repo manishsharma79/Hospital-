@@ -82,12 +82,12 @@ export function DataTable<T>({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111C2E] shadow-xs overflow-hidden transition-colors duration-200">
       {(searchFilter || filterControls) && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 bg-slate-50/50">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 px-4 py-3 bg-slate-50/50 dark:bg-[#162236]/80 transition-colors duration-200">
           {searchFilter && (
             <div className="relative flex-1 max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <input
                 type="search"
                 value={query}
@@ -96,7 +96,7 @@ export function DataTable<T>({
                   setPage(1);
                 }}
                 placeholder={searchPlaceholder}
-                className="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0F172A] py-1.5 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-600 dark:focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-colors duration-200"
               />
             </div>
           )}
@@ -109,7 +109,7 @@ export function DataTable<T>({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+            <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#162236] text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors duration-200">
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -121,19 +121,19 @@ export function DataTable<T>({
                     <button
                       type="button"
                       onClick={() => handleSort(col.key)}
-                      className={`inline-flex items-center gap-1 hover:text-slate-900 focus-visible:outline-none ${
+                      className={`inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-white focus-visible:outline-none transition-colors duration-200 ${
                         col.align === 'right' ? 'flex-row-reverse' : ''
                       }`}
                     >
                       <span>{col.header}</span>
                       {sortKey === col.key ? (
                         sortDir === 'asc' ? (
-                          <ArrowUp className="h-3.5 w-3.5 text-blue-700" />
+                          <ArrowUp className="h-3.5 w-3.5 text-blue-700 dark:text-blue-400" />
                         ) : (
-                          <ArrowDown className="h-3.5 w-3.5 text-blue-700" />
+                          <ArrowDown className="h-3.5 w-3.5 text-blue-700 dark:text-blue-400" />
                         )
                       ) : (
-                        <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
+                        <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                       )}
                     </button>
                   ) : (
@@ -143,12 +143,12 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
             {paginated.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-6 py-12 text-center">
-                  <p className="text-sm font-semibold text-slate-900">{emptyTitle}</p>
-                  <p className="mt-1 text-xs text-slate-500">{emptyDescription}</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{emptyTitle}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{emptyDescription}</p>
                   {emptyAction && <div className="mt-4 flex justify-center">{emptyAction}</div>}
                 </td>
               </tr>
@@ -156,12 +156,12 @@ export function DataTable<T>({
               paginated.map((row) => (
                 <tr
                   key={keyExtractor(row)}
-                  className="hover:bg-blue-50/40 transition-colors"
+                  className="hover:bg-blue-50/40 dark:hover:bg-blue-500/10 transition-colors duration-200"
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`px-4 py-2.5 text-slate-700 ${
+                      className={`px-4 py-2.5 text-slate-700 dark:text-slate-300 transition-colors duration-200 ${
                         col.align === 'right' ? 'text-right' : 'text-left'
                       } ${col.className || ''}`}
                     >
@@ -175,7 +175,7 @@ export function DataTable<T>({
         </table>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs text-slate-600">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#162236]/80 px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200">
         <span className="tabular-nums">
           Showing {sorted.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–
           {Math.min(safePage * pageSize, sorted.length)} of {sorted.length} records
@@ -185,7 +185,7 @@ export function DataTable<T>({
             type="button"
             disabled={safePage <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111C2E] px-2.5 py-1 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors duration-200"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             Previous
@@ -197,7 +197,7 @@ export function DataTable<T>({
             type="button"
             disabled={safePage >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111C2E] px-2.5 py-1 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors duration-200"
           >
             Next
             <ChevronRight className="h-3.5 w-3.5" />

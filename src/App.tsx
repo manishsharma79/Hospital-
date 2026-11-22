@@ -1,6 +1,7 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { HMISProvider } from './context/HMISContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
 
 // Login
@@ -33,6 +34,7 @@ import { DoctorPrescriptionsPage } from './pages/doctor/DoctorPrescriptionsPage'
 
 // Pharmacist
 import { BillingPaymentsPage } from './pages/pharmacist/BillingPaymentsPage';
+import { DoctorPrescriptionsViewPage } from './pages/pharmacist/DoctorPrescriptionsViewPage';
 import { ExpiryMonitoringPage } from './pages/pharmacist/ExpiryMonitoringPage';
 import { MedicineAvailabilityPage } from './pages/pharmacist/MedicineAvailabilityPage';
 import { MedicineInventoryPage } from './pages/pharmacist/MedicineInventoryPage';
@@ -41,9 +43,10 @@ import { VerifyPrescriptionsPage } from './pages/pharmacist/VerifyPrescriptionsP
 
 export default function App() {
   return (
-    <ToastProvider>
-      <HMISProvider>
-        <HashRouter>
+    <ThemeProvider>
+      <ToastProvider>
+        <HMISProvider>
+          <HashRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 
@@ -231,6 +234,14 @@ export default function App() {
               }
             />
             <Route
+              path="/pharmacist/doctor-prescriptions"
+              element={
+                <ProtectedRoute allowedRoles={['pharmacist']}>
+                  <DoctorPrescriptionsViewPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/pharmacist/prescriptions"
               element={
                 <ProtectedRoute allowedRoles={['pharmacist']}>
@@ -257,9 +268,10 @@ export default function App() {
 
             {/* Fallback Redirect */}
             <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </HashRouter>
-      </HMISProvider>
-    </ToastProvider>
+            </Routes>
+          </HashRouter>
+        </HMISProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

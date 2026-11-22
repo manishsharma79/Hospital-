@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, RotateCcw, Save, Search, UserCog } from 'lucide-react';
+import { AlertCircle, CheckCircle2, RotateCcw, Save, Search, UserCog } from 'lucide-react';
 import { AppShell } from '../../components/layout/AppShell';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useHMIS } from '../../context/HMISContext';
@@ -14,8 +14,13 @@ import {
   RegistrationType,
 } from '../../types/hmis';
 import { calculateAgeFromDOB, formatDate, getTodayISO } from '../../utils/hmisHelpers';
+import {
+  PatientFormValues,
+  RELATIONSHIP_OPTIONS,
+  validatePatientForm,
+} from '../../utils/patientValidation';
 
-type EditablePatientFields = Omit<Patient, 'id' | 'patientId' | 'age' | 'createdAt'>;
+type EditablePatientFields = PatientFormValues;
 
 function toEditableFields(p: Patient): EditablePatientFields {
   return {
@@ -119,42 +124,52 @@ export const UpdatePatientPage: React.FC = () => {
     setSavedBanner(null);
   };
 
-  const validate = (): boolean => {
-    if (!form) return false;
-    const nextErrors: Record<string, string> = {};
-    if (!form.fullName.trim()) nextErrors.fullName = 'Full name is required.';
-    if (!form.dob) nextErrors.dob = 'Date of birth is required.';
-    if (form.dob && new Date(form.dob) > new Date()) {
-      nextErrors.dob = 'Date of birth cannot be in the future.';
+  const updateField = <K extends keyof EditablePatientFields>(
+    field: K,
+    value: EditablePatientFields[K]
+  ) => {
+    setForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     }
-    if (!form.mobile.trim() || form.mobile.trim().length < 7) {
-      nextErrors.mobile = 'Valid mobile number is required.';
-    }
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      nextErrors.email = 'Enter a valid email address.';
-    }
-    if (!form.city.trim()) nextErrors.city = 'City is required.';
-    if (!form.state.trim()) nextErrors.state = 'State / UT is required.';
-    if (!form.country.trim()) nextErrors.country = 'Country is required.';
-    if (!form.pinCode.trim()) nextErrors.pinCode = 'PIN / Postal code is required.';
-    if (!form.emergencyName.trim()) nextErrors.emergencyName = 'Emergency contact name is required.';
-    if (!form.emergencyPhone.trim()) nextErrors.emergencyPhone = 'Emergency phone is required.';
-    if (!form.idProofNumber.trim()) nextErrors.idProofNumber = 'ID proof number is required.';
-
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatient || !form) return;
-    if (!validate()) {
-      showToast('error', 'Validation Error', 'Please correct the highlighted fields before saving.');
+    const validation = validatePatientForm(form);
+    if (!validation.valid) {
+      setErrors(validation.errors);
+      showToast('error', validation.summaryMessage, 'Please review the highlighted fields.');
       return;
     }
-    const res = updatePatient(selectedPatient.id, form);
+    setErrors({});
+    const payload = {
+      ...form,
+      fullName: form.fullName.trim(),
+      gender: form.gender as Gender,
+      idProofType: form.idProofType as IDProofType,
+      mobile: form.mobile.trim(),
+      alternatePhone: form.alternatePhone.trim(),
+      email: form.email.trim(),
+      houseNo: form.houseNo.trim(),
+      street: form.street.trim(),
+      city: form.city.trim(),
+      state: form.state.trim(),
+      country: form.country.trim(),
+      pinCode: form.pinCode.trim(),
+      emergencyName: form.emergencyName.trim(),
+      emergencyRelation: form.emergencyRelation.trim(),
+      emergencyPhone: form.emergencyPhone.trim(),
+      idProofNumber: form.idProofNumber.trim(),
+    };
+    const res = updatePatient(selectedPatient.id, payload);
     if (res.ok) {
-      const msg = `Updated details for ${form.fullName} (${selectedPatient.patientId}).`;
+      const msg = `Updated details for ${payload.fullName} (${selectedPatient.patientId}).`;
       setSavedBanner(msg);
       showToast('success', 'Patient Details Updated', msg);
     }
@@ -260,6 +275,15 @@ export const UpdatePatientPage: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            {Object.keys(errors).length > 0 && (
+              <div
+                role="alert"
+                className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+              >
+                <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                <span>{validatePatientForm(form).summaryMessage}</span>
+              </div>
+            )}
             {/* Section 1: Patient Information */}
             <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
               <div className="border-b border-slate-200 pb-3 mb-5 flex items-center justify-between gap-3">
@@ -282,7 +306,7 @@ export const UpdatePatientPage: React.FC = () => {
                   <input
                     type="text"
                     value={form.fullName}
-                    onChange={(e) => setForm((f) => f && { ...f, fullName: e.target.value })}
+                    onChange={(e) => updateField('fullName', e.target.value)}
                     className={inputClass('fullName')}
                   />
                   {errors.fullName && (
@@ -298,7 +322,7 @@ export const UpdatePatientPage: React.FC = () => {
                     type="date"
                     max={getTodayISO()}
                     value={form.dob}
-                    onChange={(e) => setForm((f) => f && { ...f, dob: e.target.value })}
+                    onChange={(e) => updateField('dob', e.target.value)}
                     className={inputClass('dob')}
                   />
                   {errors.dob && <p className="mt-1 text-xs text-red-600">{errors.dob}</p>}
@@ -320,15 +344,15 @@ export const UpdatePatientPage: React.FC = () => {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Gender *</label>
                   <select
                     value={form.gender}
-                    onChange={(e) =>
-                      setForm((f) => f && { ...f, gender: e.target.value as Gender })
-                    }
+                    onChange={(e) => updateField('gender', e.target.value as Gender | '')}
                     className={inputClass('gender')}
                   >
+                    <option value="">Select gender</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
                   </select>
+                  {errors.gender && <p className="mt-1 text-xs text-red-600">{errors.gender}</p>}
                 </div>
 
                 <div>
@@ -413,7 +437,7 @@ export const UpdatePatientPage: React.FC = () => {
                   <input
                     type="tel"
                     value={form.mobile}
-                    onChange={(e) => setForm((f) => f && { ...f, mobile: e.target.value })}
+                    onChange={(e) => updateField('mobile', e.target.value)}
                     className={inputClass('mobile')}
                   />
                   {errors.mobile && <p className="mt-1 text-xs text-red-600">{errors.mobile}</p>}
@@ -426,11 +450,12 @@ export const UpdatePatientPage: React.FC = () => {
                   <input
                     type="tel"
                     value={form.alternatePhone}
-                    onChange={(e) =>
-                      setForm((f) => f && { ...f, alternatePhone: e.target.value })
-                    }
+                    onChange={(e) => updateField('alternatePhone', e.target.value)}
                     className={inputClass('alternatePhone')}
                   />
+                  {errors.alternatePhone && (
+                    <p className="mt-1 text-xs text-red-600">{errors.alternatePhone}</p>
+                  )}
                 </div>
 
                 <div>
@@ -440,7 +465,7 @@ export const UpdatePatientPage: React.FC = () => {
                   <input
                     type="email"
                     value={form.email}
-                    onChange={(e) => setForm((f) => f && { ...f, email: e.target.value })}
+                    onChange={(e) => updateField('email', e.target.value)}
                     className={inputClass('email')}
                   />
                   {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
@@ -458,26 +483,28 @@ export const UpdatePatientPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    House / Flat Number
+                    House / Flat Number *
                   </label>
                   <input
                     type="text"
                     value={form.houseNo}
-                    onChange={(e) => setForm((f) => f && { ...f, houseNo: e.target.value })}
+                    onChange={(e) => updateField('houseNo', e.target.value)}
                     className={inputClass('houseNo')}
                   />
+                  {errors.houseNo && <p className="mt-1 text-xs text-red-600">{errors.houseNo}</p>}
                 </div>
 
                 <div className="lg:col-span-2">
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Street / Locality
+                    Street / Locality *
                   </label>
                   <input
                     type="text"
                     value={form.street}
-                    onChange={(e) => setForm((f) => f && { ...f, street: e.target.value })}
+                    onChange={(e) => updateField('street', e.target.value)}
                     className={inputClass('street')}
                   />
+                  {errors.street && <p className="mt-1 text-xs text-red-600">{errors.street}</p>}
                 </div>
 
                 <div>
@@ -485,7 +512,7 @@ export const UpdatePatientPage: React.FC = () => {
                   <input
                     type="text"
                     value={form.city}
-                    onChange={(e) => setForm((f) => f && { ...f, city: e.target.value })}
+                    onChange={(e) => updateField('city', e.target.value)}
                     className={inputClass('city')}
                   />
                   {errors.city && <p className="mt-1 text-xs text-red-600">{errors.city}</p>}
@@ -498,7 +525,7 @@ export const UpdatePatientPage: React.FC = () => {
                   <input
                     type="text"
                     value={form.state}
-                    onChange={(e) => setForm((f) => f && { ...f, state: e.target.value })}
+                    onChange={(e) => updateField('state', e.target.value)}
                     className={inputClass('state')}
                   />
                   {errors.state && <p className="mt-1 text-xs text-red-600">{errors.state}</p>}
@@ -511,7 +538,7 @@ export const UpdatePatientPage: React.FC = () => {
                   <input
                     type="text"
                     value={form.country}
-                    onChange={(e) => setForm((f) => f && { ...f, country: e.target.value })}
+                    onChange={(e) => updateField('country', e.target.value)}
                     className={inputClass('country')}
                   />
                   {errors.country && <p className="mt-1 text-xs text-red-600">{errors.country}</p>}
@@ -523,8 +550,9 @@ export const UpdatePatientPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    maxLength={6}
                     value={form.pinCode}
-                    onChange={(e) => setForm((f) => f && { ...f, pinCode: e.target.value })}
+                    onChange={(e) => updateField('pinCode', e.target.value)}
                     className={`${inputClass('pinCode')} font-mono`}
                   />
                   {errors.pinCode && <p className="mt-1 text-xs text-red-600">{errors.pinCode}</p>}
@@ -548,9 +576,7 @@ export const UpdatePatientPage: React.FC = () => {
                     <input
                       type="text"
                       value={form.emergencyName}
-                      onChange={(e) =>
-                        setForm((f) => f && { ...f, emergencyName: e.target.value })
-                      }
+                      onChange={(e) => updateField('emergencyName', e.target.value)}
                       className={inputClass('emergencyName')}
                     />
                     {errors.emergencyName && (
@@ -562,14 +588,27 @@ export const UpdatePatientPage: React.FC = () => {
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
                         Relationship *
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={form.emergencyRelation}
-                        onChange={(e) =>
-                          setForm((f) => f && { ...f, emergencyRelation: e.target.value })
-                        }
+                        onChange={(e) => updateField('emergencyRelation', e.target.value)}
                         className={inputClass('emergencyRelation')}
-                      />
+                      >
+                        <option value="">Select relationship</option>
+                        {RELATIONSHIP_OPTIONS.map((rel) => (
+                          <option key={rel} value={rel}>
+                            {rel}
+                          </option>
+                        ))}
+                        {form.emergencyRelation &&
+                          !RELATIONSHIP_OPTIONS.includes(
+                            form.emergencyRelation as (typeof RELATIONSHIP_OPTIONS)[number]
+                          ) && (
+                            <option value={form.emergencyRelation}>{form.emergencyRelation}</option>
+                          )}
+                      </select>
+                      {errors.emergencyRelation && (
+                        <p className="mt-1 text-xs text-red-600">{errors.emergencyRelation}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -578,9 +617,7 @@ export const UpdatePatientPage: React.FC = () => {
                       <input
                         type="tel"
                         value={form.emergencyPhone}
-                        onChange={(e) =>
-                          setForm((f) => f && { ...f, emergencyPhone: e.target.value })
-                        }
+                        onChange={(e) => updateField('emergencyPhone', e.target.value)}
                         className={inputClass('emergencyPhone')}
                       />
                       {errors.emergencyPhone && (
@@ -604,17 +641,19 @@ export const UpdatePatientPage: React.FC = () => {
                     </label>
                     <select
                       value={form.idProofType}
-                      onChange={(e) =>
-                        setForm((f) => f && { ...f, idProofType: e.target.value as IDProofType })
-                      }
+                      onChange={(e) => updateField('idProofType', e.target.value as IDProofType | '')}
                       className={inputClass('idProofType')}
                     >
+                      <option value="">Select ID type</option>
                       <option value="National ID / Aadhaar">National ID / Aadhaar</option>
                       <option value="Passport">Passport</option>
                       <option value="Driving License">Driving License</option>
                       <option value="Voter ID">Voter ID</option>
                       <option value="Insurance Card">Insurance Card</option>
                     </select>
+                    {errors.idProofType && (
+                      <p className="mt-1 text-xs text-red-600">{errors.idProofType}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -623,9 +662,7 @@ export const UpdatePatientPage: React.FC = () => {
                     <input
                       type="text"
                       value={form.idProofNumber}
-                      onChange={(e) =>
-                        setForm((f) => f && { ...f, idProofNumber: e.target.value })
-                      }
+                      onChange={(e) => updateField('idProofNumber', e.target.value)}
                       className={`${inputClass('idProofNumber')} font-mono`}
                     />
                     {errors.idProofNumber && (

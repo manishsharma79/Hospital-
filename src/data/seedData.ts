@@ -29,7 +29,7 @@ export function createInitialSeedData(): HMISDatabase {
       {
         id: 'usr_admin_1',
         staffCode: 'STF-1001',
-        name: 'Priya Nair',
+        name: 'Neha Kumari',
         email: 'admin@hmis.in',
         password: 'Admin@123',
         role: 'admin',
@@ -55,8 +55,8 @@ export function createInitialSeedData(): HMISDatabase {
       {
         id: 'usr_doc_1',
         staffCode: 'STF-1003',
-        name: 'Dr. Aarav Patel',
-        email: 'dr.patel@hmis.in',
+        name: 'Dr. Nisha Kumari',
+        email: 'dr.nisha@hmis.in',
         password: 'Doctor@123',
         role: 'doctor',
         departmentId: 'dept_cardio',
@@ -123,7 +123,7 @@ export function createInitialSeedData(): HMISDatabase {
       {
         id: 'usr_pharm_1',
         staffCode: 'STF-1007',
-        name: 'Anjali Kulkarni',
+        name: 'Atit Kumar',
         email: 'pharma@hmis.in',
         password: 'Pharma@123',
         role: 'pharmacist',
@@ -727,7 +727,7 @@ export function createInitialSeedData(): HMISDatabase {
           },
         ],
         status: 'Verified & Dispensed',
-        verifiedBy: 'Anjali Kulkarni',
+        verifiedBy: 'Atit Kumar',
         verifiedAt: `${twoDaysAgo}T11:30:00`,
         pharmacistNotes: 'Counselled patient on GI tolerance.',
       },
@@ -941,7 +941,7 @@ export function createInitialSeedData(): HMISDatabase {
         paymentMethod: 'Card',
         billDate: twoDaysAgo,
         paidDate: twoDaysAgo,
-        generatedBy: 'Anjali Kulkarni',
+        generatedBy: 'Atit Kumar',
       },
       {
         id: 'bill_2',
@@ -949,7 +949,7 @@ export function createInitialSeedData(): HMISDatabase {
         patientId: 'pat_1',
         items: [
           {
-            description: 'Cardiology Consultation (Dr. Aarav Patel)',
+            description: 'Cardiology Consultation (Dr. Nisha Kumari)',
             category: 'Consultation',
             quantity: 1,
             unitPrice: 800,
@@ -969,7 +969,7 @@ export function createInitialSeedData(): HMISDatabase {
         paidAmount: 0,
         paymentStatus: 'Unpaid',
         billDate: today,
-        generatedBy: 'Anjali Kulkarni',
+        generatedBy: 'Atit Kumar',
       },
     ],
     activityLogs: [
@@ -984,7 +984,7 @@ export function createInitialSeedData(): HMISDatabase {
       {
         id: 'log_2',
         timestamp: `${today}T09:15:00`,
-        actorName: 'Dr. Aarav Patel',
+        actorName: 'Dr. Nisha Kumari',
         actorRole: 'doctor',
         action: 'Prescription Issued',
         detail: 'Issued RX-5001 for Sunita Deshpande (PAT-2026-1001).',
@@ -992,7 +992,7 @@ export function createInitialSeedData(): HMISDatabase {
       {
         id: 'log_3',
         timestamp: `${twoDaysAgo}T11:30:00`,
-        actorName: 'Anjali Kulkarni',
+        actorName: 'Atit Kumar',
         actorRole: 'pharmacist',
         action: 'Prescription Dispensed & Billed',
         detail: 'Verified RX-5002 and settled INV-3001 (₹1,170.75).',

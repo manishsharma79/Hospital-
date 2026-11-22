@@ -1,22 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   CalendarClock,
   ClipboardCheck,
   CreditCard,
+  Eye,
+  FileText,
   PackageSearch,
   Pill,
 } from 'lucide-react';
 import { AppShell } from '../../components/layout/AppShell';
+import { PrescriptionViewModal } from '../../components/pharmacist/PrescriptionViewModal';
 import { StatCard } from '../../components/ui/StatCard';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useHMIS } from '../../context/HMISContext';
+import { Prescription } from '../../types/hmis';
 import { formatDate, getMedicineExpiryStatus, isLowStock } from '../../utils/hmisHelpers';
 
 export const PharmacistDashboardPage: React.FC = () => {
   const { db } = useHMIS();
   const navigate = useNavigate();
+  const [viewingRx, setViewingRx] = useState<Prescription | null>(null);
 
   const lowStock = db.medicines.filter((m) => isLowStock(m));
   const expired = db.medicines.filter(
@@ -71,16 +76,27 @@ export const PharmacistDashboardPage: React.FC = () => {
         {/* Quick Actions */}
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <h2 className="text-sm font-semibold text-slate-900 mb-3">Pharmacy Quick Actions</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/pharmacist/doctor-prescriptions')}
+              className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3 text-left hover:bg-blue-100/70 transition-colors"
+            >
+              <FileText className="h-5 w-5 text-[#0F2942] shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-slate-900">View Prescriptions</p>
+                <p className="text-xs text-slate-600">{db.prescriptions.length} doctor orders</p>
+              </div>
+            </button>
             <button
               type="button"
               onClick={() => navigate('/pharmacist/prescriptions')}
-              className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3 text-left hover:bg-blue-100/70 transition-colors"
+              className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-3 text-left hover:border-blue-300 hover:bg-blue-50/40 transition-colors"
             >
               <ClipboardCheck className="h-5 w-5 text-[#0F2942] shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-slate-900">Verify Prescriptions</p>
-                <p className="text-xs text-slate-600">{pendingRx.length} pending orders</p>
+                <p className="text-xs text-slate-500">{pendingRx.length} pending orders</p>
               </div>
             </button>
             <button
@@ -157,7 +173,17 @@ export const PharmacistDashboardPage: React.FC = () => {
                           {formatDate(rx.prescribedDate)}
                         </p>
                       </div>
-                      <StatusBadge label={rx.status} />
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge label={rx.status} />
+                        <button
+                          type="button"
+                          onClick={() => setViewingRx(rx)}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                      </div>
                     </div>
                   );
                 })
@@ -205,6 +231,15 @@ export const PharmacistDashboardPage: React.FC = () => {
           </div>
         </section>
       </div>
+
+      <PrescriptionViewModal
+        prescription={viewingRx}
+        onClose={() => setViewingRx(null)}
+        onGoToVerify={(rx) => {
+          setViewingRx(null);
+          navigate(`/pharmacist/prescriptions?rx=${rx.id}`);
+        }}
+      />
     </AppShell>
   );
 };

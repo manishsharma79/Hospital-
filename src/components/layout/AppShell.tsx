@@ -17,16 +17,19 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Moon,
   PackageSearch,
   Pill,
   ShieldCheck,
   Stethoscope,
+  Sun,
   UserCog,
   UserPlus,
   Users,
   X,
 } from 'lucide-react';
 import { useHMIS } from '../../context/HMISContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { UserRole } from '../../types/hmis';
 import { getMedicineExpiryStatus, getRoleLabel, isLowStock } from '../../utils/hmisHelpers';
@@ -65,9 +68,10 @@ const ROLE_NAV_MAP: Record<UserRole, NavItem[]> = {
   ],
   pharmacist: [
     { label: 'Dashboard', to: '/pharmacist/dashboard', icon: LayoutDashboard },
+    { label: 'Doctor Prescriptions', to: '/pharmacist/doctor-prescriptions', icon: FileText },
+    { label: 'Verify Prescriptions', to: '/pharmacist/prescriptions', icon: ClipboardCheck },
     { label: 'Medicine Inventory', to: '/pharmacist/inventory', icon: Pill },
     { label: 'Medicine Availability', to: '/pharmacist/availability', icon: PackageSearch },
-    { label: 'Verify Prescriptions', to: '/pharmacist/prescriptions', icon: ClipboardCheck },
     { label: 'Billing & Payments', to: '/pharmacist/billing', icon: CreditCard },
     { label: 'Expiry Monitoring', to: '/pharmacist/expiry', icon: CalendarClock },
   ],
@@ -81,6 +85,7 @@ interface AppShellProps {
 
 export const AppShell: React.FC<AppShellProps> = ({ pageTitle, breadcrumb, children }) => {
   const { currentUser, logout, db } = useHMIS();
+  const { isDark, toggleTheme } = useTheme();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
@@ -189,7 +194,7 @@ export const AppShell: React.FC<AppShellProps> = ({ pageTitle, breadcrumb, child
     .join('') || 'HM';
 
   return (
-    <div className="min-h-screen flex bg-[#F5F8FC] text-slate-900">
+    <div className="min-h-screen flex bg-[#F5F8FC] dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 transition-colors duration-200">
       {/* Mobile Sidebar Backdrop */}
       {mobileOpen && (
         <div
@@ -280,33 +285,44 @@ export const AppShell: React.FC<AppShellProps> = ({ pageTitle, breadcrumb, child
       {/* Main Content Wrapper */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111C2E] px-4 sm:px-6 transition-colors duration-200">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="inline-flex rounded-lg border border-slate-200 p-2 text-slate-700 hover:bg-slate-50 lg:hidden"
+              className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 lg:hidden transition-colors duration-200"
               aria-label="Open navigation menu"
             >
               <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0">
               {breadcrumb && (
-                <p className="text-xs text-slate-500 truncate">{breadcrumb}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{breadcrumb}</p>
               )}
-              <h1 className="text-base sm:text-lg font-bold text-slate-900 truncate">
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-50 truncate">
                 {pageTitle}
               </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            {/* Dark / Light Theme Toggle */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#162236] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 transition-colors duration-200"
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {isDark ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
+            </button>
+
             {/* Notifications Dropdown */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setNotifOpen((o) => !o)}
-                className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#162236] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 transition-colors duration-200"
                 aria-label="Operational alerts"
               >
                 <Bell className="h-4 w-4" />
@@ -324,13 +340,13 @@ export const AppShell: React.FC<AppShellProps> = ({ pageTitle, breadcrumb, child
                     onClick={() => setNotifOpen(false)}
                     aria-hidden="true"
                   />
-                  <div className="absolute right-0 z-40 mt-2 w-80 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-                    <div className="border-b border-slate-200 px-4 py-2.5 bg-slate-50">
-                      <p className="text-xs font-semibold text-slate-900">Operational Alerts</p>
+                  <div className="absolute right-0 z-40 mt-2 w-80 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111C2E] shadow-xl overflow-hidden transition-colors duration-200">
+                    <div className="border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 bg-slate-50 dark:bg-[#162236]">
+                      <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Operational Alerts</p>
                     </div>
-                    <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-72 overflow-y-auto">
                       {notifications.length === 0 ? (
-                        <p className="px-4 py-6 text-center text-xs text-slate-500">
+                        <p className="px-4 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
                           No urgent alerts for your workspace.
                         </p>
                       ) : (
@@ -342,10 +358,10 @@ export const AppShell: React.FC<AppShellProps> = ({ pageTitle, breadcrumb, child
                               setNotifOpen(false);
                               navigate(n.to);
                             }}
-                            className="w-full text-left px-4 py-3 hover:bg-blue-50/50 transition-colors"
+                            className="w-full text-left px-4 py-3 hover:bg-blue-50/50 dark:hover:bg-blue-500/10 transition-colors duration-200"
                           >
-                            <p className="text-xs font-semibold text-slate-900">{n.title}</p>
-                            <p className="mt-0.5 text-xs text-slate-500">{n.detail}</p>
+                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">{n.title}</p>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{n.detail}</p>
                           </button>
                         ))
                       )}
@@ -357,15 +373,15 @@ export const AppShell: React.FC<AppShellProps> = ({ pageTitle, breadcrumb, child
 
             {/* User Profile Summary */}
             {currentUser && (
-              <div className="hidden sm:flex items-center gap-2.5 border-l border-slate-200 pl-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F2942] text-xs font-bold text-white shrink-0">
+              <div className="hidden sm:flex items-center gap-2.5 border-l border-slate-200 dark:border-slate-800 pl-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F2942] dark:bg-blue-700 text-xs font-bold text-white shrink-0">
                   {initials}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-900 truncate max-w-[140px]">
+                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[140px]">
                     {currentUser.name}
                   </p>
-                  <p className="text-[11px] text-slate-500 truncate max-w-[140px]">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[140px]">
                     {getRoleLabel(currentUser.role)} · {deptName}
                   </p>
                 </div>
@@ -375,7 +391,7 @@ export const AppShell: React.FC<AppShellProps> = ({ pageTitle, breadcrumb, child
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-red-700 transition-colors whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#162236] px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-700 dark:hover:text-red-400 transition-colors duration-200 whitespace-nowrap shrink-0"
             >
               <LogOut className="h-3.5 w-3.5" />
               <span className="hidden md:inline">Logout</span>

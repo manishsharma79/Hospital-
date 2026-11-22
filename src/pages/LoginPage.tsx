@@ -8,57 +8,28 @@ import {
   KeyRound,
   Lock,
   Mail,
-  RotateCcw,
+  Moon,
   ShieldCheck,
   Stethoscope,
+  Sun,
   UserPlus,
 } from 'lucide-react';
 import atriumImg from '../assets/images/hospital_login_atrium_1795326270064.jpg';
 import { Modal } from '../components/ui/Modal';
 import { useHMIS } from '../context/HMISContext';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { UserRole } from '../types/hmis';
 import { getRoleHomeRoute, getRoleLabel } from '../utils/hmisHelpers';
 
-const DEMO_ACCOUNTS: Array<{
-  role: UserRole;
-  label: string;
-  email: string;
-  password: string;
-}> = [
-  {
-    role: 'admin',
-    label: 'Administrator',
-    email: 'admin@hmis.in',
-    password: 'Admin@123',
-  },
-  {
-    role: 'registration',
-    label: 'Registration Staff',
-    email: 'desk@hmis.in',
-    password: 'Desk@123',
-  },
-  {
-    role: 'doctor',
-    label: 'Doctor',
-    email: 'dr.patel@hmis.in',
-    password: 'Doctor@123',
-  },
-  {
-    role: 'pharmacist',
-    label: 'Pharmacist',
-    email: 'pharma@hmis.in',
-    password: 'Pharma@123',
-  },
-];
-
 export const LoginPage: React.FC = () => {
-  const { currentUser, login, registerNewStaff, resetDemoDatabase, db } = useHMIS();
+  const { currentUser, login, registerNewStaff, db } = useHMIS();
+  const { isDark, toggleTheme } = useTheme();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('admin@hmis.in');
-  const [password, setPassword] = useState('Admin@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('admin');
   const [showPassword, setShowPassword] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
@@ -112,13 +83,6 @@ export const LoginPage: React.FC = () => {
     setFeedback({ type: 'success', text: res.message });
     showToast('success', 'Authenticated', res.message);
     navigate(getRoleHomeRoute(role), { replace: true });
-  };
-
-  const handleQuickFill = (acc: (typeof DEMO_ACCOUNTS)[number]) => {
-    setEmail(acc.email);
-    setPassword(acc.password);
-    setRole(acc.role);
-    setFeedback(null);
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
@@ -203,77 +167,71 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-[#F5F8FC]">
       {/* Left Architectural Clinical Panel */}
-      <div className="relative hidden lg:flex lg:w-[44%] xl:w-[46%] flex-col justify-between bg-[#0F2942] text-white overflow-hidden">
+      <div className="relative hidden lg:flex lg:w-[44%] xl:w-[46%] flex-col justify-end bg-[#0F2942] text-white overflow-hidden">
         {!imgFailed && (
           <img
             src={atriumImg}
             alt="Hospital main clinical reception atrium"
             referrerPolicy="no-referrer"
             onError={() => setImgFailed(true)}
-            className="absolute inset-0 h-full w-full object-cover opacity-35"
+            className="absolute inset-0 h-full w-full object-cover opacity-40"
           />
         )}
         <div
-          className="absolute inset-0 bg-gradient-to-t from-[#0B1F33] via-[#0F2942]/80 to-[#0F2942]/70"
+          className="absolute inset-0 bg-gradient-to-t from-[#0B1F33] via-[#0F2942]/70 to-[#0F2942]/50"
           aria-hidden="true"
         />
 
         <div className="relative z-10 p-10">
-          <div className="inline-flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-200">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-200 shrink-0">
               <Stethoscope className="h-6 w-6" />
             </div>
-            <div>
-              <p className="text-lg font-bold tracking-tight text-white">
-                Hospital Management Information System
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative z-10 p-10 space-y-6">
-          <h2 className="text-3xl font-bold leading-tight text-white max-w-md [text-wrap:balance]">
-            Hospital Management Information System
-          </h2>
-          <p className="text-sm text-blue-100/90 leading-relaxed max-w-md">
-            Role-based coordination across hospital administration, patient registration, clinical
-            consultations, diagnostics, pharmacy dispensing, and billing.
-          </p>
-          <div className="grid grid-cols-2 gap-4 pt-2 max-w-md border-t border-white/15">
-            <div>
-              <p className="text-xs text-blue-200/80">Active Departments</p>
-              <p className="mt-1 text-xl font-bold tabular-nums">{db.departments.length}</p>
-            </div>
-            <div>
-              <p className="text-xs text-blue-200/80">Registered Patients</p>
-              <p className="mt-1 text-xl font-bold tabular-nums">{db.patients.length}</p>
-            </div>
+            <h2 className="text-2xl font-bold tracking-tight text-white leading-snug">
+              Hospital Management Information System
+            </h2>
           </div>
         </div>
       </div>
 
       {/* Right Authentication Form Panel */}
-      <div className="flex-1 flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-16">
+      <div className="relative flex-1 flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-16">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="absolute right-5 top-5 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDark ? (
+            <>
+              <Sun className="h-3.5 w-3.5 text-amber-400" />
+              <span>Light</span>
+            </>
+          ) : (
+            <>
+              <Moon className="h-3.5 w-3.5" />
+              <span>Dark</span>
+            </>
+          )}
+        </button>
+
         <div className="mx-auto w-full max-w-md">
           {/* Mobile Header Brand */}
-          <div className="flex items-center gap-3 lg:hidden mb-8">
+          <div className="flex items-center gap-3 lg:hidden mb-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0F2942] text-white shrink-0">
               <Stethoscope className="h-5 w-5" />
             </div>
-            <div>
-              <p className="text-base font-bold text-slate-900">
-                Hospital Management Information System
-              </p>
-            </div>
+            <p className="text-base font-bold text-slate-900">
+              Hospital Management Information System
+            </p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
             <div className="mb-6">
-              <h1 className="text-2xl font-bold text-slate-900">
-                Hospital Management Information System
-              </h1>
+              <h1 className="text-2xl font-bold text-slate-900">Sign In</h1>
               <p className="mt-1 text-sm text-slate-500">
-                Select your assigned role and sign in with your credentials.
+                Hospital Management Information System
               </p>
             </div>
 
@@ -377,11 +335,11 @@ export const LoginPage: React.FC = () => {
                 type="submit"
                 className="w-full rounded-lg bg-[#0F2942] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#173B5E] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
               >
-                Sign In to Workspace
+                Login
               </button>
             </form>
 
-            <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-xs">
+            <div className="mt-5 flex items-center justify-center border-t border-slate-200 pt-4 text-xs">
               <button
                 type="button"
                 onClick={() => {
@@ -393,52 +351,7 @@ export const LoginPage: React.FC = () => {
                 <UserPlus className="h-3.5 w-3.5" />
                 New Staff Registration
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  resetDemoDatabase();
-                  showToast('info', 'Demo Data Restored', 'LocalStorage dataset reset to defaults.');
-                }}
-                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800"
-                title="Restore default seed data"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset Demo Data
-              </button>
             </div>
-          </div>
-
-          {/* Demo Accounts Quick-Fill Panel */}
-          <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
-            <div className="flex items-center justify-between mb-2.5">
-              <p className="text-xs font-semibold text-slate-800">
-                Demonstration Role Accounts (Click to Autofill)
-              </p>
-              <span className="text-[11px] text-slate-500">LocalStorage Demo</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.role}
-                  type="button"
-                  onClick={() => handleQuickFill(acc)}
-                  className={`text-left rounded-lg border px-3 py-2 transition-colors ${
-                    role === acc.role && email === acc.email
-                      ? 'border-blue-600 bg-blue-50/70'
-                      : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <p className="text-xs font-semibold text-slate-900">{acc.label}</p>
-                  <p className="text-[11px] font-mono text-slate-600 truncate">{acc.email}</p>
-                  <p className="text-[11px] font-mono text-slate-500">Pass: {acc.password}</p>
-                </button>
-              ))}
-            </div>
-            <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">
-              Notice: Browser-based authentication and LocalStorage persistence are for frontend
-              demonstration only and are not secure for live patient or hospital production use.
-            </p>
           </div>
         </div>
       </div>

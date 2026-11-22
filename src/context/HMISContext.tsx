@@ -30,8 +30,8 @@ import {
   getTodayISO,
 } from '../utils/hmisHelpers';
 
-const STORAGE_KEY = 'hmis_db_v2';
-const SESSION_KEY = 'hmis_session_v2';
+const STORAGE_KEY = 'hmis_db_v3';
+const SESSION_KEY = 'hmis_session_v3';
 
 interface ActionResult {
   ok: boolean;

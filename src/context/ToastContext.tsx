@@ -33,20 +33,20 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const styleMap: Record<ToastType, { wrap: string; icon: React.ReactNode }> = {
     success: {
-      wrap: 'border-emerald-200 bg-white text-slate-900',
-      icon: <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />,
+      wrap: 'border-emerald-200 dark:border-emerald-500/40 bg-white dark:bg-[#111C2E] text-slate-900 dark:text-slate-100',
+      icon: <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />,
     },
     error: {
-      wrap: 'border-red-200 bg-white text-slate-900',
-      icon: <XCircle className="h-5 w-5 text-red-600 shrink-0" />,
+      wrap: 'border-red-200 dark:border-red-500/40 bg-white dark:bg-[#111C2E] text-slate-900 dark:text-slate-100',
+      icon: <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />,
     },
     warning: {
-      wrap: 'border-amber-200 bg-white text-slate-900',
-      icon: <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />,
+      wrap: 'border-amber-200 dark:border-amber-500/40 bg-white dark:bg-[#111C2E] text-slate-900 dark:text-slate-100',
+      icon: <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />,
     },
     info: {
-      wrap: 'border-blue-200 bg-white text-slate-900',
-      icon: <Info className="h-5 w-5 text-blue-600 shrink-0" />,
+      wrap: 'border-blue-200 dark:border-blue-500/40 bg-white dark:bg-[#111C2E] text-slate-900 dark:text-slate-100',
+      icon: <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />,
     },
   };
 
@@ -61,19 +61,23 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           <div
             key={toast.id}
             role="status"
-            className={`pointer-events-auto flex items-start gap-3 rounded-lg border p-3.5 shadow-lg transition-all duration-150 ${styleMap[toast.type].wrap}`}
+            className={`pointer-events-auto flex items-start gap-3 rounded-lg border p-3.5 shadow-lg transition-all duration-200 ${styleMap[toast.type].wrap}`}
           >
             {styleMap[toast.type].icon}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-900 leading-tight">{toast.title}</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight">
+                {toast.title}
+              </p>
               {toast.message && (
-                <p className="mt-1 text-xs text-slate-600 leading-snug">{toast.message}</p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-snug">
+                  {toast.message}
+                </p>
               )}
             </div>
             <button
               type="button"
               onClick={() => dismiss(toast.id)}
-              className="text-slate-400 hover:text-slate-600 p-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+              className="text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
               aria-label="Dismiss notification"
             >
               <X className="h-4 w-4" />

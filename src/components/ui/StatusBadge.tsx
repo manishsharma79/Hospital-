@@ -17,24 +17,29 @@ interface StatusBadgeProps {
 
 const TONE_MAP: Record<StatusTone, { classes: string; icon: React.ReactNode }> = {
   success: {
-    classes: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />,
+    classes:
+      'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/35',
+    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />,
   },
   warning: {
-    classes: 'bg-amber-50 text-amber-800 border-amber-200',
-    icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />,
+    classes:
+      'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/35',
+    icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />,
   },
   danger: {
-    classes: 'bg-red-50 text-red-800 border-red-200',
-    icon: <XCircle className="h-3.5 w-3.5 text-red-600 shrink-0" />,
+    classes:
+      'bg-red-50 text-red-800 border-red-200 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/35',
+    icon: <XCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0" />,
   },
   info: {
-    classes: 'bg-blue-50 text-blue-800 border-blue-200',
-    icon: <Clock className="h-3.5 w-3.5 text-blue-600 shrink-0" />,
+    classes:
+      'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/35',
+    icon: <Clock className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />,
   },
   neutral: {
-    classes: 'bg-slate-100 text-slate-700 border-slate-200',
-    icon: <MinusCircle className="h-3.5 w-3.5 text-slate-500 shrink-0" />,
+    classes:
+      'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    icon: <MinusCircle className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />,
   },
 };
 
@@ -92,10 +97,10 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ label, tone }) => {
   const style = TONE_MAP[resolved];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${style.classes}`}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-colors duration-200 ${style.classes}`}
     >
       {resolved === 'danger' && label.toLowerCase().includes('expired') ? (
-        <ShieldAlert className="h-3.5 w-3.5 text-red-600 shrink-0" />
+        <ShieldAlert className="h-3.5 w-3.5 text-red-600 dark:text-red-400 shrink-0" />
       ) : (
         style.icon
       )}

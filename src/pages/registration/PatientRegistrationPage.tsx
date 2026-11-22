@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { RotateCcw, UserPlus, X } from 'lucide-react';
+import { AlertCircle, RotateCcw, UserPlus, X } from 'lucide-react';
 import { AppShell } from '../../components/layout/AppShell';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useHMIS } from '../../context/HMISContext';
@@ -17,40 +17,11 @@ import {
   generateUniquePatientId,
   getTodayISO,
 } from '../../utils/hmisHelpers';
-
-interface PatientFormState {
-  // Section 1: Patient Information
-  fullName: string;
-  dob: string;
-  gender: Gender;
-  bloodGroup: BloodGroup;
-  maritalStatus: MaritalStatus;
-  // Section 2: Contact Information
-  mobile: string;
-  alternatePhone: string;
-  email: string;
-  // Section 3: Address Information
-  houseNo: string;
-  street: string;
-  city: string;
-  state: string;
-  country: string;
-  pinCode: string;
-  // Section 4: Emergency Contact
-  emergencyName: string;
-  emergencyRelation: string;
-  emergencyPhone: string;
-  // Section 5: Identification Information
-  idProofType: IDProofType;
-  idProofNumber: string;
-  // Section 6: Registration Information
-  registrationDate: string;
-  registrationType: RegistrationType;
-  assignedDepartmentId: string;
-  assignedDoctorId: string;
-  allergies: string;
-  chronicConditions: string;
-}
+import {
+  PatientFormValues,
+  RELATIONSHIP_OPTIONS,
+  validatePatientForm,
+} from '../../utils/patientValidation';
 
 export const PatientRegistrationPage: React.FC = () => {
   const { db, registerPatient, updatePatient } = useHMIS();
@@ -74,10 +45,10 @@ export const PatientRegistrationPage: React.FC = () => {
     [db.departments]
   );
 
-  const buildInitialForm = (): PatientFormState => ({
+  const buildInitialForm = (): PatientFormValues => ({
     fullName: '',
     dob: '',
-    gender: 'Male',
+    gender: '',
     bloodGroup: 'O+',
     maritalStatus: 'Single',
     mobile: '',
@@ -90,9 +61,9 @@ export const PatientRegistrationPage: React.FC = () => {
     country: 'India',
     pinCode: '',
     emergencyName: '',
-    emergencyRelation: 'Spouse',
+    emergencyRelation: '',
     emergencyPhone: '',
-    idProofType: 'National ID / Aadhaar',
+    idProofType: '',
     idProofNumber: '',
     registrationDate: getTodayISO(),
     registrationType: 'Outpatient (OPD)',
@@ -102,8 +73,9 @@ export const PatientRegistrationPage: React.FC = () => {
     chronicConditions: '',
   });
 
-  const [form, setForm] = useState<PatientFormState>(buildInitialForm);
+  const [form, setForm] = useState<PatientFormValues>(buildInitialForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formErrorBanner, setFormErrorBanner] = useState<string | null>(null);
 
   useEffect(() => {
     if (editingPatient) {
@@ -145,50 +117,70 @@ export const PatientRegistrationPage: React.FC = () => {
 
   const selectedDoctor = doctors.find((d) => d.id === form.assignedDoctorId);
 
-  const validate = (): boolean => {
-    const nextErrors: Record<string, string> = {};
-    if (!form.fullName.trim()) nextErrors.fullName = 'Full name is required.';
-    if (!form.dob) nextErrors.dob = 'Date of birth is required.';
-    if (form.dob && new Date(form.dob) > new Date()) {
-      nextErrors.dob = 'Date of birth cannot be in the future.';
+  const updateField = <K extends keyof PatientFormValues>(
+    field: K,
+    value: PatientFormValues[K]
+  ) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
     }
-    if (!form.mobile.trim() || form.mobile.trim().length < 7) {
-      nextErrors.mobile = 'Valid mobile number is required.';
-    }
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      nextErrors.email = 'Enter a valid email address.';
-    }
-    if (!form.city.trim()) nextErrors.city = 'City is required.';
-    if (!form.state.trim()) nextErrors.state = 'State / UT is required.';
-    if (!form.country.trim()) nextErrors.country = 'Country is required.';
-    if (!form.pinCode.trim()) nextErrors.pinCode = 'PIN / Postal code is required.';
-    if (!form.emergencyName.trim()) nextErrors.emergencyName = 'Emergency contact name is required.';
-    if (!form.emergencyPhone.trim()) nextErrors.emergencyPhone = 'Emergency phone is required.';
-    if (!form.idProofNumber.trim()) nextErrors.idProofNumber = 'ID proof number is required.';
-
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    if (formErrorBanner) setFormErrorBanner(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) {
-      showToast('error', 'Incomplete Registration', 'Please review the highlighted fields.');
+    const validation = validatePatientForm(form);
+    if (!validation.valid) {
+      setErrors(validation.errors);
+      setFormErrorBanner(validation.summaryMessage);
+      showToast('error', validation.summaryMessage, 'Please review the highlighted fields.');
       return;
     }
 
+    setErrors({});
+    setFormErrorBanner(null);
+
+    const payload = {
+      ...form,
+      fullName: form.fullName.trim(),
+      gender: form.gender as Gender,
+      idProofType: form.idProofType as IDProofType,
+      mobile: form.mobile.trim(),
+      alternatePhone: form.alternatePhone.trim(),
+      email: form.email.trim(),
+      houseNo: form.houseNo.trim(),
+      street: form.street.trim(),
+      city: form.city.trim(),
+      state: form.state.trim(),
+      country: form.country.trim(),
+      pinCode: form.pinCode.trim(),
+      emergencyName: form.emergencyName.trim(),
+      emergencyRelation: form.emergencyRelation.trim(),
+      emergencyPhone: form.emergencyPhone.trim(),
+      idProofNumber: form.idProofNumber.trim(),
+    };
+
     if (editingPatient) {
-      const res = updatePatient(editingPatient.id, form);
+      const res = updatePatient(editingPatient.id, payload);
       if (res.ok) {
-        showToast('success', 'Patient Updated', `${form.fullName} (${editingPatient.patientId}) saved.`);
+        showToast('success', 'Patient Updated', `${payload.fullName} (${editingPatient.patientId}) saved.`);
         navigate('/registration/patients');
       }
       return;
     }
 
-    const res = registerPatient(form);
+    const res = registerPatient(payload);
     if (res.ok) {
-      showToast('success', 'Patient Registered', res.message);
+      showToast(
+        'success',
+        'Patient registered successfully',
+        `${payload.fullName} (${res.patient?.patientId || previewPatientId})`
+      );
       navigate('/registration/patients');
     }
   };
@@ -196,6 +188,7 @@ export const PatientRegistrationPage: React.FC = () => {
   const handleReset = () => {
     setForm(buildInitialForm());
     setErrors({});
+    setFormErrorBanner(null);
     showToast('info', 'Form Cleared', 'All registration fields have been reset.');
   };
 
@@ -212,6 +205,16 @@ export const PatientRegistrationPage: React.FC = () => {
       breadcrumb="HMIS / Registration / Patient Intake Form"
     >
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        {formErrorBanner && (
+          <div
+            role="alert"
+            className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+          >
+            <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+            <span>{formErrorBanner}</span>
+          </div>
+        )}
+
         {/* Section 1: Patient Information */}
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
           <div className="border-b border-slate-200 pb-3 mb-5">
@@ -228,7 +231,7 @@ export const PatientRegistrationPage: React.FC = () => {
               <input
                 type="text"
                 value={form.fullName}
-                onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+                onChange={(e) => updateField('fullName', e.target.value)}
                 placeholder="Patient legal full name"
                 className={inputClass('fullName')}
               />
@@ -243,7 +246,7 @@ export const PatientRegistrationPage: React.FC = () => {
                 type="date"
                 max={getTodayISO()}
                 value={form.dob}
-                onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))}
+                onChange={(e) => updateField('dob', e.target.value)}
                 className={inputClass('dob')}
               />
               {errors.dob && <p className="mt-1 text-xs text-red-600">{errors.dob}</p>}
@@ -265,13 +268,15 @@ export const PatientRegistrationPage: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-700 mb-1">Gender *</label>
               <select
                 value={form.gender}
-                onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value as Gender }))}
+                onChange={(e) => updateField('gender', e.target.value as Gender | '')}
                 className={inputClass('gender')}
               >
+                <option value="">Select gender</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
               </select>
+              {errors.gender && <p className="mt-1 text-xs text-red-600">{errors.gender}</p>}
             </div>
 
             <div>
@@ -357,7 +362,7 @@ export const PatientRegistrationPage: React.FC = () => {
               <input
                 type="tel"
                 value={form.mobile}
-                onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
+                onChange={(e) => updateField('mobile', e.target.value)}
                 placeholder="+91 98201-44510"
                 className={inputClass('mobile')}
               />
@@ -371,10 +376,13 @@ export const PatientRegistrationPage: React.FC = () => {
               <input
                 type="tel"
                 value={form.alternatePhone}
-                onChange={(e) => setForm((f) => ({ ...f, alternatePhone: e.target.value }))}
+                onChange={(e) => updateField('alternatePhone', e.target.value)}
                 placeholder="Optional landline or secondary"
                 className={inputClass('alternatePhone')}
               />
+              {errors.alternatePhone && (
+                <p className="mt-1 text-xs text-red-600">{errors.alternatePhone}</p>
+              )}
             </div>
 
             <div>
@@ -384,7 +392,7 @@ export const PatientRegistrationPage: React.FC = () => {
               <input
                 type="email"
                 value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                onChange={(e) => updateField('email', e.target.value)}
                 placeholder="patient@example.in"
                 className={inputClass('email')}
               />
@@ -406,28 +414,30 @@ export const PatientRegistrationPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                House / Flat Number
+                House / Flat Number *
               </label>
               <input
                 type="text"
                 value={form.houseNo}
-                onChange={(e) => setForm((f) => ({ ...f, houseNo: e.target.value }))}
+                onChange={(e) => updateField('houseNo', e.target.value)}
                 placeholder="e.g. Flat 402 / H.No. 14"
                 className={inputClass('houseNo')}
               />
+              {errors.houseNo && <p className="mt-1 text-xs text-red-600">{errors.houseNo}</p>}
             </div>
 
             <div className="lg:col-span-2">
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Street / Locality
+                Street / Locality *
               </label>
               <input
                 type="text"
                 value={form.street}
-                onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))}
+                onChange={(e) => updateField('street', e.target.value)}
                 placeholder="e.g. MG Road, Indiranagar"
                 className={inputClass('street')}
               />
+              {errors.street && <p className="mt-1 text-xs text-red-600">{errors.street}</p>}
             </div>
 
             <div>
@@ -435,7 +445,7 @@ export const PatientRegistrationPage: React.FC = () => {
               <input
                 type="text"
                 value={form.city}
-                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                onChange={(e) => updateField('city', e.target.value)}
                 placeholder="e.g. Bengaluru"
                 className={inputClass('city')}
               />
@@ -449,7 +459,7 @@ export const PatientRegistrationPage: React.FC = () => {
               <input
                 type="text"
                 value={form.state}
-                onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+                onChange={(e) => updateField('state', e.target.value)}
                 placeholder="e.g. Karnataka"
                 className={inputClass('state')}
               />
@@ -461,7 +471,7 @@ export const PatientRegistrationPage: React.FC = () => {
               <input
                 type="text"
                 value={form.country}
-                onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+                onChange={(e) => updateField('country', e.target.value)}
                 placeholder="Country"
                 className={inputClass('country')}
               />
@@ -472,9 +482,10 @@ export const PatientRegistrationPage: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-700 mb-1">PIN Code *</label>
               <input
                 type="text"
+                maxLength={6}
                 value={form.pinCode}
-                onChange={(e) => setForm((f) => ({ ...f, pinCode: e.target.value }))}
-                placeholder="e.g. 560038"
+                onChange={(e) => updateField('pinCode', e.target.value)}
+                placeholder="6-digit PIN code"
                 className={`${inputClass('pinCode')} font-mono`}
               />
               {errors.pinCode && <p className="mt-1 text-xs text-red-600">{errors.pinCode}</p>}
@@ -502,7 +513,7 @@ export const PatientRegistrationPage: React.FC = () => {
                 <input
                   type="text"
                   value={form.emergencyName}
-                  onChange={(e) => setForm((f) => ({ ...f, emergencyName: e.target.value }))}
+                  onChange={(e) => updateField('emergencyName', e.target.value)}
                   placeholder="Full name of contact"
                   className={inputClass('emergencyName')}
                 />
@@ -516,13 +527,21 @@ export const PatientRegistrationPage: React.FC = () => {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Relationship with Patient *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={form.emergencyRelation}
-                    onChange={(e) => setForm((f) => ({ ...f, emergencyRelation: e.target.value }))}
-                    placeholder="e.g. Spouse, Parent"
+                    onChange={(e) => updateField('emergencyRelation', e.target.value)}
                     className={inputClass('emergencyRelation')}
-                  />
+                  >
+                    <option value="">Select relationship</option>
+                    {RELATIONSHIP_OPTIONS.map((rel) => (
+                      <option key={rel} value={rel}>
+                        {rel}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.emergencyRelation && (
+                    <p className="mt-1 text-xs text-red-600">{errors.emergencyRelation}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -531,7 +550,7 @@ export const PatientRegistrationPage: React.FC = () => {
                   <input
                     type="tel"
                     value={form.emergencyPhone}
-                    onChange={(e) => setForm((f) => ({ ...f, emergencyPhone: e.target.value }))}
+                    onChange={(e) => updateField('emergencyPhone', e.target.value)}
                     placeholder="+91 98200-00123"
                     className={inputClass('emergencyPhone')}
                   />
@@ -560,17 +579,19 @@ export const PatientRegistrationPage: React.FC = () => {
                 </label>
                 <select
                   value={form.idProofType}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, idProofType: e.target.value as IDProofType }))
-                  }
+                  onChange={(e) => updateField('idProofType', e.target.value as IDProofType | '')}
                   className={inputClass('idProofType')}
                 >
+                  <option value="">Select ID type</option>
                   <option value="National ID / Aadhaar">National ID / Aadhaar</option>
                   <option value="Passport">Passport</option>
                   <option value="Driving License">Driving License</option>
                   <option value="Voter ID">Voter ID</option>
                   <option value="Insurance Card">Insurance Card</option>
                 </select>
+                {errors.idProofType && (
+                  <p className="mt-1 text-xs text-red-600">{errors.idProofType}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -579,7 +600,7 @@ export const PatientRegistrationPage: React.FC = () => {
                 <input
                   type="text"
                   value={form.idProofNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, idProofNumber: e.target.value }))}
+                  onChange={(e) => updateField('idProofNumber', e.target.value)}
                   placeholder="Enter document number"
                   className={`${inputClass('idProofNumber')} font-mono`}
                 />
@@ -621,9 +642,12 @@ export const PatientRegistrationPage: React.FC = () => {
               <input
                 type="date"
                 value={form.registrationDate}
-                onChange={(e) => setForm((f) => ({ ...f, registrationDate: e.target.value }))}
+                onChange={(e) => updateField('registrationDate', e.target.value)}
                 className={inputClass('registrationDate')}
               />
+              {errors.registrationDate && (
+                <p className="mt-1 text-xs text-red-600">{errors.registrationDate}</p>
+              )}
             </div>
 
             <div>

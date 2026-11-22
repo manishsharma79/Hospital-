@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, ShieldAlert, XCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Eye, ShieldAlert, XCircle } from 'lucide-react';
 import { AppShell } from '../../components/layout/AppShell';
+import { PrescriptionViewModal } from '../../components/pharmacist/PrescriptionViewModal';
 import { DataTable, TableColumn } from '../../components/ui/DataTable';
 import { Modal } from '../../components/ui/Modal';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -12,10 +14,24 @@ import { formatDate, getMedicineExpiryStatus } from '../../utils/hmisHelpers';
 export const VerifyPrescriptionsPage: React.FC = () => {
   const { db, verifyAndDispensePrescription, rejectPrescription } = useHMIS();
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [statusFilter, setStatusFilter] = useState<'all' | PrescriptionStatus>('all');
   const [activeRx, setActiveRx] = useState<Prescription | null>(null);
+  const [viewRx, setViewRx] = useState<Prescription | null>(null);
   const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    const rxId = searchParams.get('rx');
+    if (rxId) {
+      const matched = db.prescriptions.find((p) => p.id === rxId);
+      if (matched) {
+        setActiveRx(matched);
+        setNotes(matched.pharmacistNotes || '');
+      }
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, db.prescriptions, setSearchParams]);
 
   const filtered = useMemo(() => {
     if (statusFilter === 'all') return db.prescriptions;
@@ -130,20 +146,30 @@ export const VerifyPrescriptionsPage: React.FC = () => {
     },
     {
       key: 'actions',
-      header: 'Action',
+      header: 'Actions',
       align: 'right',
       render: (r) => (
-        <button
-          type="button"
-          onClick={() => {
-            setActiveRx(r);
-            setNotes(r.pharmacistNotes || '');
-          }}
-          className="inline-flex items-center gap-1.5 rounded-md bg-[#0F2942] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#173B5E] whitespace-nowrap"
-        >
-          <ClipboardCheck className="h-3.5 w-3.5" />
-          {r.status === 'Pending Verification' ? 'Verify & Dispense' : 'Inspect'}
-        </button>
+        <div className="inline-flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setViewRx(r)}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveRx(r);
+              setNotes(r.pharmacistNotes || '');
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-[#0F2942] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#173B5E] whitespace-nowrap"
+          >
+            <ClipboardCheck className="h-3.5 w-3.5" />
+            {r.status === 'Pending Verification' ? 'Verify & Dispense' : 'Inspect'}
+          </button>
+        </div>
       ),
     },
   ];
@@ -263,7 +289,10 @@ export const VerifyPrescriptionsPage: React.FC = () => {
                         {item.medicineName}
                       </td>
                       <td className="px-3 py-2.5 text-slate-600">
-                        {item.dosage} · {item.frequency} ({item.durationDays}d)
+                        <p>{item.dosage} · {item.frequency} ({item.durationDays}d)</p>
+                        {item.instructions && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">{item.instructions}</p>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono font-semibold tabular-nums">
                         {item.quantityRequested}
@@ -337,6 +366,16 @@ export const VerifyPrescriptionsPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      <PrescriptionViewModal
+        prescription={viewRx}
+        onClose={() => setViewRx(null)}
+        onGoToVerify={(rx) => {
+          setViewRx(null);
+          setActiveRx(rx);
+          setNotes(rx.pharmacistNotes || '');
+        }}
+      />
     </AppShell>
   );
 };
