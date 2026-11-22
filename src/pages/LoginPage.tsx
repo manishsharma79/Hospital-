@@ -23,7 +23,7 @@ import { UserRole } from '../types/hmis';
 import { getRoleHomeRoute, getRoleLabel } from '../utils/hmisHelpers';
 
 export const LoginPage: React.FC = () => {
-  const { currentUser, login, registerNewStaff, db } = useHMIS();
+  const { currentUser, backendConnected, login, registerNewStaff, db } = useHMIS();
   const { isDark, toggleTheme } = useTheme();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -126,7 +126,7 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    showToast('success', 'Staff Account Created', res.message);
+    showToast('success', 'User Account Created', res.message);
     setEmail(regForm.email.trim().toLowerCase());
     setPassword(regForm.password);
     setRole(regForm.role);
@@ -346,24 +346,32 @@ export const LoginPage: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setRegError('');
+                  setRegForm((f) => ({
+                    ...f,
+                    departmentId: f.departmentId || db.departments[0]?.id || '',
+                  }));
                   setRegisterOpen(true);
                 }}
                 className="inline-flex items-center gap-1.5 font-semibold text-blue-700 hover:text-blue-800"
               >
                 <UserPlus className="h-3.5 w-3.5" />
-                New Staff Registration
+                New User Registration
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* New Staff Registration Modal */}
+      {/* New User Registration Modal */}
       <Modal
         open={registerOpen}
         onClose={() => setRegisterOpen(false)}
-        title="New Staff Registration"
-        subtitle="Create a demonstration staff account stored locally in your browser."
+        title="New User Registration"
+        subtitle={
+          backendConnected
+            ? 'Register a new user account (all 4 roles) saved directly to the Spring Boot & MySQL backend.'
+            : 'Create a demonstration user account stored locally in your browser.'
+        }
         maxWidthClass="max-w-lg"
       >
         <form onSubmit={handleRegisterSubmit} className="space-y-4">
@@ -499,7 +507,7 @@ export const LoginPage: React.FC = () => {
               type="submit"
               className="rounded-lg bg-[#0F2942] px-4 py-2 text-sm font-semibold text-white hover:bg-[#173B5E]"
             >
-              Create Staff Account
+              Create User Account
             </button>
           </div>
         </form>
