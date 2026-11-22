@@ -1,0 +1,6 @@
+{
+  "name": "Hospital Management Information System",
+  "description": "Frontend-only role-based Hospital Management Information System with Administrator, Registration Staff, Doctor, and Pharmacist dashboards powered by LocalStorage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
